@@ -51,7 +51,7 @@ export interface StreamEngineOptions {
 
 export class StreamEngine {
   private readonly processes: Map<CameraId, FfmpegProcess> = new Map();
-  private readonly profile: QualityProfile;
+  private profile: QualityProfile;
   private readonly rtmpHost: string;
   private readonly rtmpPort: number;
   private readonly ffmpegBin: string;
@@ -182,7 +182,7 @@ export class StreamEngine {
    * Does not affect currently running streams.
    */
   public setProfile(profile: QualityProfile): void {
-    (this as { profile: QualityProfile }).profile = profile;
+    this.profile = profile;
     logger.info({ profile }, 'Quality profile updated');
   }
 
