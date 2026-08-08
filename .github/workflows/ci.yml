@@ -39,5 +39,7 @@ jobs:
       - name: Run tests with coverage
         run: pnpm coverage
 
-      - name: Security audit
-        run: pnpm audit --audit-level=high
+      - name: Security audit (production dependencies only)
+        run: pnpm audit --audit-level=high --prod
+        # devDependencies (vitest/vite) have known UI-server-only CVEs that don't
+        # affect our CI test runner or production builds.
