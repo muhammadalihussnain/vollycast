@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "paths": {
+      "@vollycast/shared": ["../../shared/src/index.ts"],
+      "@vollycast/shared/*": ["../../shared/src/*.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

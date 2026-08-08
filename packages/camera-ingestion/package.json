@@ -1,0 +1,26 @@
+{
+  "name": "@vollycast/camera-ingestion",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --run",
+    "coverage": "vitest run --coverage",
+    "dev": "node --loader ts-node/esm src/index.ts"
+  },
+  "dependencies": {
+    "@vollycast/shared": "workspace:*",
+    "pino": "8.21.0",
+    "pino-pretty": "11.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.0",
+    "@vitest/coverage-v8": "1.6.0",
+    "typescript": "5.5.4",
+    "vitest": "1.6.0"
+  }
+}
