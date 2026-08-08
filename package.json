@@ -1,0 +1,34 @@
+{
+  "name": "vollycast",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Professional multi-camera live streaming for local volleyball — DG Khan",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test:all": "pnpm -r run test --run",
+    "coverage": "pnpm -r run coverage",
+    "lint": "eslint 'packages/**/src/**/*.ts' 'shared/**/*.ts'",
+    "format": "prettier --write 'packages/**/src/**' 'shared/**'",
+    "typecheck": "pnpm -r run typecheck",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.0",
+    "husky": "9.1.4",
+    "lint-staged": "15.2.7",
+    "prettier": "3.3.3",
+    "typescript": "5.5.4"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}
