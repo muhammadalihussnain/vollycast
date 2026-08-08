@@ -6,20 +6,23 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
+import { HTTP_STATUS, VALIDATION } from '@vollycast/shared';
 import type { MatchService } from './MatchService.js';
 
-const TeamSchema = z.object({
-  name: z.string().min(1).max(50),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  logoUrl: z.string().url().optional(),
-}).transform((t) => {
-  const result: { name: string; color: string; logoUrl?: string } = {
-    name: t.name,
-    color: t.color,
-  };
-  if (t.logoUrl !== undefined) result.logoUrl = t.logoUrl;
-  return result;
-});
+const TeamSchema = z
+  .object({
+    name: z.string().min(VALIDATION.TEAM_NAME_MIN_LENGTH).max(VALIDATION.TEAM_NAME_MAX_LENGTH),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    logoUrl: z.string().url().optional(),
+  })
+  .transform((t) => {
+    const result: { name: string; color: string; logoUrl?: string } = {
+      name: t.name,
+      color: t.color,
+    };
+    if (t.logoUrl !== undefined) result.logoUrl = t.logoUrl;
+    return result;
+  });
 
 const CreateMatchSchema = z.object({
   homeTeam: TeamSchema,
@@ -43,14 +46,14 @@ export function createScoreRouter(matchService: MatchService): Router {
   router.post('/match', (req: Request, res: Response): void => {
     const parsed = CreateMatchSchema.safeParse(req.body);
     if (!parsed.success) {
-      sendError(res, 400, parsed.error.message);
+      sendError(res, HTTP_STATUS.BAD_REQUEST, parsed.error.message);
       return;
     }
     try {
       const match = matchService.createMatch(parsed.data);
-      res.status(201).json(match);
+      res.status(HTTP_STATUS.CREATED).json(match);
     } catch (err) {
-      sendError(res, 500, toMessage(err));
+      sendError(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, toMessage(err));
     }
   });
 
@@ -60,7 +63,7 @@ export function createScoreRouter(matchService: MatchService): Router {
       const match = matchService.startMatch();
       res.json(match);
     } catch (err) {
-      sendError(res, 400, toMessage(err));
+      sendError(res, HTTP_STATUS.BAD_REQUEST, toMessage(err));
     }
   });
 
@@ -68,7 +71,7 @@ export function createScoreRouter(matchService: MatchService): Router {
   router.get('/match', (_req: Request, res: Response): void => {
     const match = matchService.getMatch();
     if (match === null) {
-      sendError(res, 404, 'No active match');
+      sendError(res, HTTP_STATUS.NOT_FOUND, 'No active match');
       return;
     }
     res.json(match);
@@ -80,7 +83,7 @@ export function createScoreRouter(matchService: MatchService): Router {
       const score = matchService.getScore();
       res.json(score);
     } catch (err) {
-      sendError(res, 404, toMessage(err));
+      sendError(res, HTTP_STATUS.NOT_FOUND, toMessage(err));
     }
   });
 
@@ -88,14 +91,14 @@ export function createScoreRouter(matchService: MatchService): Router {
   router.post('/score/increment', (req: Request, res: Response): void => {
     const parsed = SideSchema.safeParse(req.body?.side);
     if (!parsed.success) {
-      sendError(res, 400, 'Invalid side — must be "home" or "away"');
+      sendError(res, HTTP_STATUS.BAD_REQUEST, 'Invalid side — must be "home" or "away"');
       return;
     }
     try {
       const match = matchService.incrementScore(parsed.data);
       res.json({ score: match.currentScore });
     } catch (err) {
-      sendError(res, 400, toMessage(err));
+      sendError(res, HTTP_STATUS.BAD_REQUEST, toMessage(err));
     }
   });
 
@@ -103,14 +106,14 @@ export function createScoreRouter(matchService: MatchService): Router {
   router.post('/score/decrement', (req: Request, res: Response): void => {
     const parsed = SideSchema.safeParse(req.body?.side);
     if (!parsed.success) {
-      sendError(res, 400, 'Invalid side — must be "home" or "away"');
+      sendError(res, HTTP_STATUS.BAD_REQUEST, 'Invalid side — must be "home" or "away"');
       return;
     }
     try {
       const match = matchService.decrementScore(parsed.data);
       res.json({ score: match.currentScore });
     } catch (err) {
-      sendError(res, 400, toMessage(err));
+      sendError(res, HTTP_STATUS.BAD_REQUEST, toMessage(err));
     }
   });
 
@@ -120,7 +123,7 @@ export function createScoreRouter(matchService: MatchService): Router {
       const match = matchService.completeSet();
       res.json(match);
     } catch (err) {
-      sendError(res, 400, toMessage(err));
+      sendError(res, HTTP_STATUS.BAD_REQUEST, toMessage(err));
     }
   });
 
@@ -130,7 +133,7 @@ export function createScoreRouter(matchService: MatchService): Router {
       const match = matchService.endMatch();
       res.json(match);
     } catch (err) {
-      sendError(res, 400, toMessage(err));
+      sendError(res, HTTP_STATUS.BAD_REQUEST, toMessage(err));
     }
   });
 
