@@ -12,6 +12,13 @@ const TeamSchema = z.object({
   name: z.string().min(1).max(50),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   logoUrl: z.string().url().optional(),
+}).transform((t) => {
+  const result: { name: string; color: string; logoUrl?: string } = {
+    name: t.name,
+    color: t.color,
+  };
+  if (t.logoUrl !== undefined) result.logoUrl = t.logoUrl;
+  return result;
 });
 
 const CreateMatchSchema = z.object({

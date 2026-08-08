@@ -62,10 +62,11 @@ export class MatchService {
       throw new Error(`Cannot start match in status: ${match.status}`);
     }
     match.status = 'live';
-    match.startedAt = new Date();
-    this.bus.emit(VOLLYCAST_EVENTS.MATCH_STARTED, { matchId: match.id });
-    logger.info({ matchId: match.id }, 'Match started');
-    return this.cloneMatch(match);
+    const updatedMatch: Match = { ...match, startedAt: new Date() };
+    this.match = updatedMatch;
+    this.bus.emit(VOLLYCAST_EVENTS.MATCH_STARTED, { matchId: updatedMatch.id });
+    logger.info({ matchId: updatedMatch.id }, 'Match started');
+    return this.cloneMatch(updatedMatch);
   }
 
   /**
