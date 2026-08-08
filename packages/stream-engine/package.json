@@ -1,26 +1,23 @@
 {
-  "name": "@vollycast/shared",
+  "name": "@vollycast/stream-engine",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": "./dist/index.js",
-    "./types": "./dist/types/index.js",
-    "./constants": "./dist/constants/index.js",
-    "./events": "./dist/events/EventBus.js"
-  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
     "coverage": "vitest run --coverage"
   },
+  "dependencies": {
+    "@vollycast/shared": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "20.14.0",
     "@vitest/coverage-v8": "2.1.9",
-    "vitest": "2.1.9",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "2.1.9"
   }
 }
