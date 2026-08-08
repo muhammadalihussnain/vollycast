@@ -49,6 +49,25 @@ importers:
         specifier: 2.1.9
         version: 2.1.9(@types/node@20.14.0)
 
+  packages/stream-engine:
+    dependencies:
+      '@vollycast/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@types/node':
+        specifier: 20.14.0
+        version: 20.14.0
+      '@vitest/coverage-v8':
+        specifier: 2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@20.14.0))
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: 2.1.9
+        version: 2.1.9(@types/node@20.14.0)
+
   shared:
     devDependencies:
       '@types/node':
