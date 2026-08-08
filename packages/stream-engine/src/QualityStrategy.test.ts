@@ -22,8 +22,8 @@ describe('QualityStrategy', () => {
     });
 
     it('low strategy produces lower bitrate than medium', () => {
-      const low = createQualityStrategy('low').buildArgs(INPUT, OUTPUT);
-      const medium = createQualityStrategy('medium').buildArgs(INPUT, OUTPUT);
+      const low = createQualityStrategy('low').buildArgs();
+      const medium = createQualityStrategy('medium').buildArgs();
       const lowBitrateIdx = low.videoArgs.indexOf('-b:v') + 1;
       const medBitrateIdx = medium.videoArgs.indexOf('-b:v') + 1;
       const lowVal = parseInt(String(low.videoArgs[lowBitrateIdx]), 10);
@@ -32,8 +32,8 @@ describe('QualityStrategy', () => {
     });
 
     it('high strategy produces higher bitrate than medium', () => {
-      const medium = createQualityStrategy('medium').buildArgs(INPUT, OUTPUT);
-      const high = createQualityStrategy('high').buildArgs(INPUT, OUTPUT);
+      const medium = createQualityStrategy('medium').buildArgs();
+      const high = createQualityStrategy('high').buildArgs();
       const medIdx = medium.videoArgs.indexOf('-b:v') + 1;
       const highIdx = high.videoArgs.indexOf('-b:v') + 1;
       const medVal = parseInt(String(medium.videoArgs[medIdx]), 10);
@@ -43,27 +43,27 @@ describe('QualityStrategy', () => {
 
     it('all strategies include libx264 video codec', () => {
       for (const profile of ['low', 'medium', 'high'] as const) {
-        const args = createQualityStrategy(profile).buildArgs(INPUT, OUTPUT);
+        const args = createQualityStrategy(profile).buildArgs();
         expect(args.videoArgs).toContain('libx264');
       }
     });
 
     it('all strategies include aac audio codec', () => {
       for (const profile of ['low', 'medium', 'high'] as const) {
-        const args = createQualityStrategy(profile).buildArgs(INPUT, OUTPUT);
+        const args = createQualityStrategy(profile).buildArgs();
         expect(args.audioArgs).toContain('aac');
       }
     });
 
     it('all strategies include flv output format', () => {
       for (const profile of ['low', 'medium', 'high'] as const) {
-        const args = createQualityStrategy(profile).buildArgs(INPUT, OUTPUT);
+        const args = createQualityStrategy(profile).buildArgs();
         expect(args.formatArgs).toContain('flv');
       }
     });
 
     it('strategy includes scale filter with correct dimensions for low', () => {
-      const args = createQualityStrategy('low').buildArgs(INPUT, OUTPUT);
+      const args = createQualityStrategy('low').buildArgs();
       const vfIdx = args.videoArgs.indexOf('-vf') + 1;
       expect(String(args.videoArgs[vfIdx])).toContain('854');
       expect(String(args.videoArgs[vfIdx])).toContain('480');

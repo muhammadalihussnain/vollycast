@@ -20,8 +20,11 @@ export interface TranscodeArgs {
 
 export interface QualityStrategy {
   readonly profile: QualityProfile;
-  buildArgs(inputUrl: string, outputUrl: string): TranscodeArgs;
+  buildArgs(): TranscodeArgs;
 }
+
+/** Keyframe interval multiplier — keyframe every N seconds worth of frames */
+const KEYFRAME_INTERVAL_MULTIPLIER = 2;
 
 /**
  * Builds FFmpeg -vf scale filter value from width and height.
@@ -38,7 +41,7 @@ export function createQualityStrategy(profile: QualityProfile): QualityStrategy 
 
   return {
     profile,
-    buildArgs(_inputUrl: string, _outputUrl: string): TranscodeArgs {
+    buildArgs(): TranscodeArgs {
       return {
         videoArgs: [
           '-c:v', 'libx264',
@@ -46,7 +49,7 @@ export function createQualityStrategy(profile: QualityProfile): QualityStrategy 
           '-preset', config.preset,
           '-vf', scaleFilter(config.width, config.height),
           '-r', String(config.frameRate),
-          '-g', String(config.frameRate * 2), // keyframe every 2 seconds
+          '-g', String(config.frameRate * KEYFRAME_INTERVAL_MULTIPLIER),
         ],
         audioArgs: [
           '-c:a', 'aac',
@@ -69,7 +72,7 @@ export function buildFfmpegArgs(
   outputUrl: string,
   strategy: QualityStrategy,
 ): string[] {
-  const { videoArgs, audioArgs, formatArgs } = strategy.buildArgs(inputUrl, outputUrl);
+  const { videoArgs, audioArgs, formatArgs } = strategy.buildArgs();
   return [
     '-re',
     '-i', inputUrl,

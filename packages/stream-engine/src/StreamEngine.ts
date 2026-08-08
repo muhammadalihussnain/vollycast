@@ -78,21 +78,21 @@ export class StreamEngine {
   public start(): void {
     const unsubConnect = this.bus.on<CameraEventPayload>(
       VOLLYCAST_EVENTS.CAMERA_CONNECTED,
-      ({ camera }) => {
+      ({ camera }): void => {
         this.startStream(camera.id, camera.streamUrl);
       },
     );
 
     const unsubDisconnect = this.bus.on<CameraEventPayload>(
       VOLLYCAST_EVENTS.CAMERA_DISCONNECTED,
-      ({ camera }) => {
+      ({ camera }): void => {
         this.stopStream(camera.id);
       },
     );
 
     this.unsubscribers.push(unsubConnect, unsubDisconnect);
 
-    this.healthTimer = setInterval(() => {
+    this.healthTimer = setInterval((): void => {
       this.emitHealthMetrics();
     }, this.healthIntervalMs);
 
@@ -144,11 +144,11 @@ export class StreamEngine {
       id: cameraId,
       args,
       ffmpegBin: this.ffmpegBin,
-      onExit: (id: CameraId) => {
+      onExit: (id: CameraId): void => {
         this.processes.delete(id);
         logger.info({ cameraId: id }, 'Stream exited cleanly');
       },
-      onError: (id: CameraId, code: number | null) => {
+      onError: (id: CameraId, code: number | null): void => {
         this.processes.delete(id);
         logger.error({ cameraId: id, exitCode: code }, 'Stream exited with error');
       },
