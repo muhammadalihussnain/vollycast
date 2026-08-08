@@ -1,12 +1,30 @@
 /**
  * Structured logger for the camera-ingestion module.
- * Uses pino — never use console.log in production code.
+ * Wraps console methods with log-level control.
+ * Silent in test environment — no noise during test runs.
  */
-import pino from 'pino';
 
-const logger = pino({
-  name: 'camera-ingestion',
-  level: process.env['NODE_ENV'] === 'test' ? 'silent' : 'info',
-});
+type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
-export { logger };
+interface LogFields {
+  [key: string]: unknown;
+}
+
+const isSilent = process.env['NODE_ENV'] === 'test';
+
+function log(level: LogLevel, fields: LogFields, message: string): void {
+  if (isSilent) return;
+  const entry = JSON.stringify({ level, name: 'camera-ingestion', ...fields, msg: message });
+  if (level === 'error' || level === 'warn') {
+    process.stderr.write(entry + '\n');
+  } else {
+    process.stdout.write(entry + '\n');
+  }
+}
+
+export const logger = {
+  info: (fields: LogFields, message: string): void => log('info', fields, message),
+  warn: (fields: LogFields, message: string): void => log('warn', fields, message),
+  error: (fields: LogFields, message: string): void => log('error', fields, message),
+  debug: (fields: LogFields, message: string): void => log('debug', fields, message),
+};

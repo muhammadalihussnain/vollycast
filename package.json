@@ -5,7 +5,7 @@
   "description": "Professional multi-camera live streaming for local volleyball — DG Khan",
   "scripts": {
     "build": "pnpm -r run build",
-    "test:all": "pnpm -r run test --run",
+    "test:all": "pnpm -r run test",
     "coverage": "pnpm -r run coverage",
     "lint": "eslint 'packages/**/src/**/*.ts' 'shared/**/*.ts'",
     "format": "prettier --write 'packages/**/src/**' 'shared/**'",

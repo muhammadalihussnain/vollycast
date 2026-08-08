@@ -13,9 +13,7 @@
     "dev": "node --loader ts-node/esm src/index.ts"
   },
   "dependencies": {
-    "@vollycast/shared": "workspace:*",
-    "pino": "8.21.0",
-    "pino-pretty": "11.2.1"
+    "@vollycast/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "20.14.0",

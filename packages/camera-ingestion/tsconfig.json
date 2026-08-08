@@ -3,10 +3,7 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "paths": {
-      "@vollycast/shared": ["../../shared/src/index.ts"],
-      "@vollycast/shared/*": ["../../shared/src/*.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
