@@ -158,4 +158,31 @@ describe('CameraIngestionService', () => {
     service.stop();
     vi.useRealTimers();
   });
+
+  it('health check skips camera with no lastSeenAt entry', async () => {
+    // This covers the internal edge case where a camera is active
+    // but has no lastSeenAt entry (e.g. direct registry manipulation)
+    const errorReceived: CameraEventPayload[] = [];
+    bus.on<CameraEventPayload>(VOLLYCAST_EVENTS.CAMERA_ERROR, (p) => errorReceived.push(p));
+
+    service.start();
+    const cam = service.connect({ name: 'Cam 1', streamUrl: 'rtmp://localhost/live/cam1' });
+
+    // Manually remove the lastSeenAt entry to simulate the edge case
+    // Access via the service's disconnect (which also removes it), then re-add as active
+    service.disconnect(cam.id);
+    // Re-register directly through registry to put it back in active with no heartbeat tracking
+    registry.register({
+      id: 'ghost-cam',
+      name: 'Ghost',
+      streamUrl: 'rtmp://localhost/live/ghost',
+      status: 'active',
+    });
+
+    // Health check runs — ghost-cam has no lastSeenAt so it should be skipped (no error)
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const ghostErrors = errorReceived.filter((e) => e.camera.id === 'ghost-cam');
+    expect(ghostErrors).toHaveLength(0);
+  });
 });
