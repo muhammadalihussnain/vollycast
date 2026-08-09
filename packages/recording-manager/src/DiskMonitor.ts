@@ -19,6 +19,9 @@ import { logger } from './logger.js';
 /** Bytes per gigabyte */
 const BYTES_PER_GB = 1_073_741_824;
 
+/** Multiplier to convert a ratio to a percentage */
+const PERCENT = 100;
+
 /** Check interval — every 30 seconds */
 const CHECK_INTERVAL_MS = 30_000;
 
@@ -66,7 +69,7 @@ export class DiskMonitor {
     const totalBytes = stats.blocks * stats.bsize;
     const freeBytes = stats.bavail * stats.bsize;
     const usedBytes = totalBytes - freeBytes;
-    const usedPercent = totalBytes > 0 ? (usedBytes / totalBytes) * 100 : 0;
+    const usedPercent = totalBytes > 0 ? (usedBytes / totalBytes) * PERCENT : 0;
     const freeGb = freeBytes / BYTES_PER_GB;
 
     const payload: DiskSpacePayload = { usedPercent, freeGb };
