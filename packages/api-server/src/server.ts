@@ -128,7 +128,7 @@ apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
 apiApp.post('/cameras/disconnect', (req: Request, res: Response): void => {
   const body = req.body as Record<string, string>;
   const name = body['name'];
-  const camera = cameraService.getCameras().find(c => c.name === name);
+  const camera = cameraService.getCameras().find((c: { name: string }) => c.name === name);
 
   if (camera === undefined) {
     res.status(HTTP_STATUS.NOT_FOUND).json({ error: `No camera named '${name ?? ''}'` });
@@ -170,7 +170,7 @@ apiApp.post('/rtmp/on_done', (req: Request, res: Response): void => {
   const streamKey = (req.body as Record<string, string>)['name'] ?? '';
   logger.info({ streamKey }, 'Phone stopped streaming');
 
-  const camera = cameraService.getCameras().find(c => c.name === streamKey);
+  const camera = cameraService.getCameras().find((c: { name: string }) => c.name === streamKey);
   if (camera !== undefined) {
     try {
       cameraService.disconnect(camera.id);
