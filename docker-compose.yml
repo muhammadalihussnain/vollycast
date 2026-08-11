@@ -1,19 +1,18 @@
 # ── VollyCast — Local Development Stack ──────────────────────────────────────
-# Run everything with:  docker compose up
+# Run everything with:  docker compose up -d
 # Stop everything with: docker compose down
 
 services:
 
   # ── nginx RTMP ──────────────────────────────────────────────────────────────
-  # Receives camera streams from phones via RTMP
-  # Phones push to:  rtmp://<your-laptop-ip>:1935/live/<camera-name>
-  # Watch a stream:  http://<your-laptop-ip>:8080/hls/<camera-name>.m3u8
+  # Phones push to:  rtmp://<laptop-ip>:1935/live/<camera-name>
+  # Watch in VLC:    http://<laptop-ip>:8080/hls/<camera-name>.m3u8
   nginx-rtmp:
     image: tiangolo/nginx-rtmp
     container_name: vollycast-nginx-rtmp
     ports:
-      - "1935:1935"   # RTMP — phones stream to this port
-      - "8080:8080"   # HTTP — HLS playlist served here
+      - "1935:1935"
+      - "8080:8080"
     volumes:
       - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - hls-data:/tmp/hls
@@ -21,8 +20,8 @@ services:
     networks:
       - vollycast-net
 
-  # ── VollyCast API ────────────────────────────────────────────────────────────
-  # Camera ingestion + Stream engine + Scoreboard overlay — all in one process
+  # ── VollyCast API ─────────────────────────────────────────────────────────────
+  # Camera ingestion + Stream engine + Scoreboard overlay + Broadcast + Scene switcher
   vollycast-api:
     build:
       context: .
@@ -30,7 +29,7 @@ services:
     container_name: vollycast-api
     ports:
       - "4000:4000"   # REST API
-      - "3001:3001"   # Scoreboard overlay (browser source for OBS)
+      - "3001:3001"   # Scoreboard overlay (OBS browser source)
     environment:
       - NODE_ENV=production
       - RTMP_HOST=nginx-rtmp
@@ -43,6 +42,38 @@ services:
       - hls-data:/tmp/hls
     depends_on:
       - nginx-rtmp
+    restart: unless-stopped
+    networks:
+      - vollycast-net
+
+  # ── Web Dashboard ─────────────────────────────────────────────────────────────
+  # Director's control panel
+  # Open: http://localhost:3000
+  web-dashboard:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.dashboard
+    container_name: vollycast-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - vollycast-api
+    restart: unless-stopped
+    networks:
+      - vollycast-net
+
+  # ── Mobile Controller ─────────────────────────────────────────────────────────
+  # Scorekeeper PWA — open on phone browser (must be on same WiFi/hotspot)
+  # Open: http://10.248.125.23:3002
+  mobile-controller:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.mobile
+    container_name: vollycast-mobile
+    ports:
+      - "3002:3002"
+    depends_on:
+      - vollycast-api
     restart: unless-stopped
     networks:
       - vollycast-net
