@@ -1,0 +1,62 @@
+# ── Build stage ───────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@9.1.0
+
+# Copy workspace config
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY shared/         ./shared/
+COPY packages/camera-ingestion/    ./packages/camera-ingestion/
+COPY packages/stream-engine/       ./packages/stream-engine/
+COPY packages/scoreboard-overlay/  ./packages/scoreboard-overlay/
+COPY packages/recording-manager/   ./packages/recording-manager/
+COPY packages/api-server/          ./packages/api-server/
+COPY packages/scoreboard-overlay/public/ ./packages/scoreboard-overlay/public/
+
+# Install dependencies (skip husky and lifecycle scripts)
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
+
+# Build all packages in dependency order
+RUN pnpm --filter @vollycast/shared build
+RUN pnpm --filter @vollycast/camera-ingestion build
+RUN pnpm --filter @vollycast/stream-engine build
+RUN pnpm --filter @vollycast/scoreboard-overlay build
+RUN pnpm --filter @vollycast/recording-manager build
+RUN pnpm --filter @vollycast/api-server build
+
+# ── Runtime stage ──────────────────────────────────────────────────────────────
+FROM node:20-alpine AS runtime
+
+# Install FFmpeg
+RUN apk add --no-cache ffmpeg
+
+WORKDIR /app
+
+RUN npm install -g pnpm@9.1.0
+
+# Copy workspace structure
+COPY package.json pnpm-workspace.yaml ./
+COPY --from=builder /app/shared/dist/             ./shared/dist/
+COPY --from=builder /app/shared/package.json      ./shared/package.json
+COPY --from=builder /app/packages/camera-ingestion/dist/    ./packages/camera-ingestion/dist/
+COPY --from=builder /app/packages/camera-ingestion/package.json ./packages/camera-ingestion/package.json
+COPY --from=builder /app/packages/stream-engine/dist/       ./packages/stream-engine/dist/
+COPY --from=builder /app/packages/stream-engine/package.json ./packages/stream-engine/package.json
+COPY --from=builder /app/packages/scoreboard-overlay/dist/  ./packages/scoreboard-overlay/dist/
+COPY --from=builder /app/packages/scoreboard-overlay/package.json ./packages/scoreboard-overlay/package.json
+COPY --from=builder /app/packages/scoreboard-overlay/public/ ./packages/scoreboard-overlay/public/
+COPY --from=builder /app/packages/recording-manager/dist/   ./packages/recording-manager/dist/
+COPY --from=builder /app/packages/recording-manager/package.json ./packages/recording-manager/package.json
+COPY --from=builder /app/packages/api-server/dist/          ./packages/api-server/dist/
+COPY --from=builder /app/packages/api-server/package.json   ./packages/api-server/package.json
+
+# Install production dependencies only
+# Install production dependencies only (skip husky and other dev scripts)
+RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts
+
+EXPOSE 4000 3001
+
+CMD ["node", "packages/api-server/dist/server.js"]

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VollyCast Scoreboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* OBS browser source: set background to transparent */
+    /* For testing in browser: show a dark bg so you can see it */
+    body.preview {
+      background: #1a1a2e;
+      align-items: center;
+      padding-bottom: 0;
+    }
+
+    #scoreboard {
+      display: flex;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.82);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+      min-width: 520px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .team {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 28px;
+      flex: 1;
+    }
+
+    .team-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.85;
+      margin-bottom: 6px;
+    }
+
+    .team-score {
+      font-size: 56px;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+      transition: transform 0.15s ease, color 0.15s ease;
+    }
+
+    .team-score.bump {
+      transform: scale(1.25);
+      color: #FFD700;
+    }
+
+    .divider {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 18px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .divider-line {
+      font-size: 36px;
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    .set-info {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 1px;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .sets {
+      display: flex;
+      gap: 5px;
+      margin-top: 4px;
+    }
+
+    .set-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+    }
+
+    .set-dot.won {
+      background: #FFD700;
+    }
+
+    #status-bar {
+      text-align: center;
+      color: rgba(255,255,255,0.35);
+      font-size: 11px;
+      margin-top: 10px;
+      letter-spacing: 1px;
+    }
+
+    #status-bar.live {
+      color: #ff4444;
+    }
+
+    #wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+  </style>
+</head>
+<body class="preview">
+  <div id="wrapper">
+    <div id="scoreboard">
+      <div class="team" id="home-team">
+        <div class="team-name" id="home-name">Home</div>
+        <div class="team-score" id="home-score">0</div>
+        <div class="sets" id="home-sets"></div>
+      </div>
+
+      <div class="divider">
+        <div class="divider-line">:</div>
+        <div class="set-info" id="set-label">Set 1</div>
+      </div>
+
+      <div class="team" id="away-team">
+        <div class="team-name" id="away-name">Away</div>
+        <div class="team-score" id="away-score">0</div>
+        <div class="sets" id="away-sets"></div>
+      </div>
+    </div>
+    <div id="status-bar">Connecting...</div>
+  </div>
+
+  <script>
+    const socket = io({ path: '/overlay-ws' });
+
+    const homeScore  = document.getElementById('home-score');
+    const awayScore  = document.getElementById('away-score');
+    const homeName   = document.getElementById('home-name');
+    const awayName   = document.getElementById('away-name');
+    const homeTeam   = document.getElementById('home-team');
+    const awayTeam   = document.getElementById('away-team');
+    const setLabel   = document.getElementById('set-label');
+    const homeSets   = document.getElementById('home-sets');
+    const awaySets   = document.getElementById('away-sets');
+    const statusBar  = document.getElementById('status-bar');
+
+    function bump(el) {
+      el.classList.remove('bump');
+      void el.offsetWidth; // force reflow
+      el.classList.add('bump');
+      setTimeout(() => el.classList.remove('bump'), 300);
+    }
+
+    function renderSets(container, winsCount, totalSets) {
+      container.innerHTML = '';
+      for (let i = 0; i < totalSets; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'set-dot' + (i < winsCount ? ' won' : '');
+        container.appendChild(dot);
+      }
+    }
+
+    socket.on('connected', () => {
+      statusBar.textContent = 'Live';
+      statusBar.className = 'live';
+    });
+
+    socket.on('disconnect', () => {
+      statusBar.textContent = 'Reconnecting...';
+      statusBar.className = '';
+    });
+
+    socket.on('match:started', (data) => {
+      homeName.textContent = data.homeTeam?.name ?? 'Home';
+      awayName.textContent = data.awayTeam?.name ?? 'Away';
+      homeTeam.style.borderBottom = '3px solid ' + (data.homeTeam?.color ?? '#fff');
+      awayTeam.style.borderBottom = '3px solid ' + (data.awayTeam?.color ?? '#fff');
+      homeScore.textContent = '0';
+      awayScore.textContent = '0';
+      setLabel.textContent = 'Set 1';
+      homeSets.innerHTML = '';
+      awaySets.innerHTML = '';
+      statusBar.textContent = 'Live';
+      statusBar.className = 'live';
+    });
+
+    socket.on('score:update', (data) => {
+      const prevHome = parseInt(homeScore.textContent, 10);
+      const prevAway = parseInt(awayScore.textContent, 10);
+
+      homeScore.textContent = data.currentScore.home;
+      awayScore.textContent = data.currentScore.away;
+
+      if (data.currentScore.home !== prevHome) bump(homeScore);
+      if (data.currentScore.away !== prevAway) bump(awayScore);
+
+      if (data.currentSet) {
+        setLabel.textContent = 'Set ' + data.currentSet;
+      }
+
+      // set wins dots
+      if (data.sets) {
+        const totalSets = data.sets.length + 1;
+        const homeWins = data.sets.filter(s => s.winner === 'home').length;
+        const awayWins = data.sets.filter(s => s.winner === 'away').length;
+        renderSets(homeSets, homeWins, totalSets);
+        renderSets(awaySets, awayWins, totalSets);
+      }
+    });
+
+    socket.on('set:completed', (data) => {
+      homeScore.textContent = '0';
+      awayScore.textContent = '0';
+      if (data.nextSet) {
+        setLabel.textContent = 'Set ' + data.nextSet;
+      }
+    });
+
+    socket.on('match:completed', (data) => {
+      statusBar.textContent = 'Match Complete';
+      statusBar.className = '';
+    });
+  </script>
+</body>
+</html>
