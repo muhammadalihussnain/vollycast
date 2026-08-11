@@ -99,5 +99,27 @@ describe('StreamKeyStore', () => {
       const encrypted = store1.encrypt('some-key');
       expect(() => store2.decrypt(encrypted)).toThrow();
     });
+
+    it('throws when IV hex decodes to wrong length', () => {
+      const store = new StreamKeyStore(makeKey());
+      // Build a stored string with a short IV (less than 12 bytes)
+      const shortIvHex = Buffer.alloc(8).toString('hex'); // 8 bytes, not 12
+      const authTagHex = Buffer.alloc(16).toString('hex');
+      const ciphertextHex = Buffer.alloc(8).toString('hex');
+      expect(() =>
+        store.decrypt(`${shortIvHex}:${authTagHex}:${ciphertextHex}`),
+      ).toThrow('Invalid IV length');
+    });
+
+    it('throws when auth tag hex decodes to wrong length', () => {
+      const store = new StreamKeyStore(makeKey());
+      // Build a stored string with a short auth tag (less than 16 bytes)
+      const ivHex = Buffer.alloc(12).toString('hex'); // correct 12 bytes
+      const shortAuthTagHex = Buffer.alloc(8).toString('hex'); // 8 bytes, not 16
+      const ciphertextHex = Buffer.alloc(8).toString('hex');
+      expect(() =>
+        store.decrypt(`${ivHex}:${shortAuthTagHex}:${ciphertextHex}`),
+      ).toThrow('Invalid auth tag length');
+    });
   });
 });

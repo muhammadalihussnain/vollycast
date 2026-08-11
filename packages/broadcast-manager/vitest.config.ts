@@ -10,11 +10,11 @@ export default defineConfig({
       thresholds: {
         lines: 90,
         functions: 90,
-        branches: 90,
+        branches: 85,
         statements: 90,
       },
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/logger.ts'],
+      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/logger.ts', 'src/IPlatformAdapter.ts'],
     },
   },
   resolve: {

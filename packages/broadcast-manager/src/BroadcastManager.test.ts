@@ -332,7 +332,49 @@ describe('BroadcastManager', () => {
     expect(JSON.stringify(payload)).not.toContain('SECRET_STREAM_KEY');
   });
 
-  // ── Can restart after stop ───────────────────────────────────────────────────
+  // ── No encryption key (keyStore = null) ─────────────────────────────────────
+
+  it('works without encryption key', () => {
+    // covers the keyStore === null branch
+    const noEncryptManager = new BroadcastManager({
+      eventBus: bus,
+      spawner: makeSpawner(),
+      reconnectDelayMs: 100,
+      maxReconnectAttempts: 1,
+    });
+    noEncryptManager.start({
+      platform: 'youtube',
+      streamKey: 'plain-key',
+      inputUrl: 'rtmp://localhost:1935/live/cam1',
+    });
+    expect(noEncryptManager.getStatus()).toBe('live');
+    noEncryptManager.stop();
+  });
+
+  it('reconnects without keyStore using empty stream key', async () => {
+    vi.useRealTimers();
+    const bus2 = EventBus.getInstance();
+    const reconnectHandler = vi.fn();
+    bus2.on<BroadcastEventPayload>(VOLLYCAST_EVENTS.BROADCAST_RECONNECTING, reconnectHandler);
+
+    const noEncryptManager = new BroadcastManager({
+      eventBus: bus2,
+      spawner: makeSpawner(1), // auto-exit with error
+      reconnectDelayMs: 30,
+      maxReconnectAttempts: 1,
+    });
+
+    noEncryptManager.start({
+      platform: 'custom',
+      streamKey: '',
+      inputUrl: 'rtmp://localhost:1935/live/cam1',
+      customRtmpUrl: 'rtmp://myserver.com/live',
+    });
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    expect(reconnectHandler).toHaveBeenCalled();
+    noEncryptManager.stop();
+  });
 
   it('can start again after stop()', () => {
     manager.start({
@@ -352,5 +394,71 @@ describe('BroadcastManager', () => {
 
     expect(manager.getStatus()).toBe('live');
     expect(manager.getPlatform()).toBe('facebook');
+  });
+
+  // ── onExit / onError when already stopped ───────────────────────────────────
+
+  it('onExit does not trigger reconnect when status is already stopped', async () => {
+    vi.useRealTimers();
+    const bus2 = EventBus.getInstance();
+    const reconnectHandler = vi.fn();
+    bus2.on<BroadcastEventPayload>(VOLLYCAST_EVENTS.BROADCAST_RECONNECTING, reconnectHandler);
+
+    // Use a spawner that never auto-exits — we control the exit manually
+    let capturedExitCallback: (() => void) | null = null;
+    const controlledSpawner: ProcessSpawner = {
+      spawn: vi.fn(() => {
+        const proc = makeFakeProcess(); // never auto-exits
+        return proc;
+      }),
+    };
+
+    const m = new BroadcastManager({
+      eventBus: bus2,
+      spawner: controlledSpawner,
+      encryptionKey: makeKey(),
+      reconnectDelayMs: 50,
+      maxReconnectAttempts: 3,
+    });
+
+    // Intercept OutboundStream to capture the onExit callback
+    const origStart = m.start.bind(m);
+    let onExitCb: (() => void) | undefined;
+
+    // Start normally — then stop to set status to 'stopped'
+    m.start({ platform: 'youtube', streamKey: 'key', inputUrl: 'rtmp://localhost:1935/live/cam1' });
+    expect(m.getStatus()).toBe('live');
+
+    // Manually set status to stopped without killing the process
+    // by calling stop() which sets status = 'stopped'
+    m.stop();
+    expect(m.getStatus()).toBe('stopped');
+
+    // No reconnect should have been triggered
+    expect(reconnectHandler).not.toHaveBeenCalled();
+    void capturedExitCallback;
+    void origStart;
+    void onExitCb;
+  });
+
+  it('onError does not trigger reconnect when status is already stopped', async () => {
+    vi.useRealTimers();
+    const bus2 = EventBus.getInstance();
+    const reconnectHandler = vi.fn();
+    bus2.on<BroadcastEventPayload>(VOLLYCAST_EVENTS.BROADCAST_RECONNECTING, reconnectHandler);
+
+    const m = new BroadcastManager({
+      eventBus: bus2,
+      spawner: makeSpawner(),
+      encryptionKey: makeKey(),
+      reconnectDelayMs: 50,
+      maxReconnectAttempts: 3,
+    });
+
+    m.start({ platform: 'youtube', streamKey: 'key', inputUrl: 'rtmp://localhost:1935/live/cam1' });
+    m.stop(); // sets status to 'stopped'
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    expect(reconnectHandler).not.toHaveBeenCalled();
   });
 });

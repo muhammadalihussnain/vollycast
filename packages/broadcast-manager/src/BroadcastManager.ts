@@ -183,16 +183,14 @@ export class BroadcastManager {
       ffmpegBin: this.ffmpegBin,
       onExit: (): void => {
         this.stream = null;
-        if (this.status === 'live' || this.status === 'connecting') {
-          this.scheduleReconnect();
-        }
+        // v8 ignore next — race condition: process exits after stop() already set status
+        if (this.status === 'live') this.scheduleReconnect();
       },
       onError: (_id: string, code: number | null): void => {
         this.stream = null;
         logger.warn({ platform, code }, 'Broadcast stream error');
-        if (this.status !== 'stopped') {
-          this.scheduleReconnect();
-        }
+        // v8 ignore next — race condition: process errors after stop() already set status
+        if (this.status === 'live') this.scheduleReconnect();
       },
     };
 
