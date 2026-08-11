@@ -1,0 +1,26 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 85,
+        statements: 90,
+      },
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/logger.ts', 'src/IPlatformAdapter.ts'],
+    },
+  },
+  resolve: {
+    alias: {
+      '@vollycast/shared': new URL('../../shared/src/index.ts', import.meta.url).pathname,
+      '@vollycast/stream-engine': new URL('../stream-engine/src/index.ts', import.meta.url).pathname,
+    },
+  },
+});

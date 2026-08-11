@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["node"],
+    "paths": {
+      "@vollycast/shared":             ["../../shared/dist/index.d.ts"],
+      "@vollycast/camera-ingestion":   ["../camera-ingestion/dist/index.d.ts"],
+      "@vollycast/stream-engine":      ["../stream-engine/dist/index.d.ts"],
+      "@vollycast/scoreboard-overlay": ["../scoreboard-overlay/dist/index.d.ts"],
+      "@vollycast/recording-manager":  ["../recording-manager/dist/index.d.ts"],
+      "@vollycast/broadcast-manager":  ["../broadcast-manager/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

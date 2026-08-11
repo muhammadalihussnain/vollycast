@@ -1,0 +1,28 @@
+{
+  "name": "@vollycast/api-server",
+  "version": "1.0.0",
+  "description": "VollyCast combined API server — wires all modules together",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "node --loader ts-node/esm src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@vollycast/broadcast-manager": "workspace:*",
+    "@vollycast/camera-ingestion": "workspace:*",
+    "@vollycast/recording-manager": "workspace:*",
+    "@vollycast/scoreboard-overlay": "workspace:*",
+    "@vollycast/shared": "workspace:*",
+    "@vollycast/stream-engine": "workspace:*",
+    "express": "5.1.0",
+    "pino": "9.6.0"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.1",
+    "@types/node": "20.14.0",
+    "typescript": "5.4.5"
+  }
+}
