@@ -41,6 +41,9 @@ importers:
       '@vollycast/recording-manager':
         specifier: workspace:*
         version: link:../recording-manager
+      '@vollycast/scene-switcher':
+        specifier: workspace:*
+        version: link:../scene-switcher
       '@vollycast/scoreboard-overlay':
         specifier: workspace:*
         version: link:../scoreboard-overlay
@@ -109,6 +112,25 @@ importers:
         version: 2.1.9(@types/node@20.14.0)
 
   packages/recording-manager:
+    dependencies:
+      '@vollycast/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@types/node':
+        specifier: 20.14.0
+        version: 20.14.0
+      '@vitest/coverage-v8':
+        specifier: 2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@20.14.0))
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: 2.1.9
+        version: 2.1.9(@types/node@20.14.0)
+
+  packages/scene-switcher:
     dependencies:
       '@vollycast/shared':
         specifier: workspace:*
