@@ -2,7 +2,7 @@
 
 Complete guide for using VollyCast on match day.
 
-**Your laptop IP:** `10.248.125.23`
+**Your laptop IP:** `10.177.87.23`
 *(Run `hostname -I | awk '{print $1}'` to confirm — it changes if you switch networks)*
 
 ---
@@ -12,7 +12,7 @@ Complete guide for using VollyCast on match day.
 1. [What You Need](#1-what-you-need)
 2. [Match Day Setup](#2-match-day-setup)
 3. [Step-by-Step: Start the System](#3-step-by-step-start-the-system)
-4. [Step-by-Step: Connect Cameras](#4-step-by-step-connect-cameras)
+4. [Step-by-Step: Connect Cameras with DroidCam](#4-step-by-step-connect-cameras-with-droidcam)
 5. [Step-by-Step: Director Control Panel](#5-step-by-step-director-control-panel)
 6. [Step-by-Step: Scorekeeper Phone App](#6-step-by-step-scorekeeper-phone-app)
 7. [Step-by-Step: OBS Setup](#7-step-by-step-obs-setup)
@@ -30,10 +30,13 @@ Complete guide for using VollyCast on match day.
 |---|---|
 | Laptop (Dell Latitude 5420) | Runs the whole system |
 | 1–6 Android phones | Camera feeds |
-| Streamlabs app on each camera phone | Streams video to laptop |
+| **DroidCam** app on each camera phone | Streams video from phone to laptop over WiFi |
 | 1 Android phone for scorekeeper | Runs the score controller app |
 | Phone hotspot or WiFi router | Connects all devices |
 | OBS Studio (optional) | Adds scoreboard overlay to stream |
+
+Install DroidCam on each camera phone:
+- Android: search "DroidCam" by Dev47Apps on Play Store (free)
 
 ---
 
@@ -56,136 +59,122 @@ All phones must connect to the **same WiFi or hotspot** as the laptop.
 
 ## 3. Step-by-Step: Start the System
 
-Open a terminal on the laptop:
-
 ```bash
 cd /home/muhammad/Documents/volly-ball
 docker compose up -d
-```
-
-Verify everything is running:
-```bash
 docker ps
 ```
 
-You should see 4 containers: `vollycast-nginx-rtmp`, `vollycast-api`, `vollycast-dashboard`, `vollycast-mobile`.
+You should see 4 containers running: `vollycast-nginx-rtmp`, `vollycast-api`, `vollycast-dashboard`, `vollycast-mobile`.
 
 ---
 
-## 4. Step-by-Step: Connect Cameras
+## 4. Step-by-Step: Connect Cameras with DroidCam
 
-On **each camera phone**, open **Streamlabs** → Settings → Stream → Custom RTMP:
+Repeat these steps for each camera phone.
 
-| Field | Camera 1 | Camera 2 | Camera 3 |
-|---|---|---|---|
-| Server URL | `rtmp://10.248.125.23:1935/live` | same | same |
-| Stream Key | `cam1` | `cam2` | `cam3` |
+### On the phone
+1. Open **DroidCam** app
+2. Make sure phone is on same WiFi/hotspot as laptop
+3. Note the **WiFi IP** shown (e.g. `10.177.87.79`)
+4. Tap **Start**
 
-Tap **Go Live** on each phone.
+### On the laptop — Terminal 1 (connect DroidCam)
+```bash
+droidcam-cli 10.177.87.79 4747
+```
 
-Then register each camera with the API (run on laptop):
+It will show the video device:
+```
+Video: /dev/video4
+```
+
+Leave this terminal running.
+
+### On the laptop — Terminal 2 (push to VollyCast)
+```bash
+ffmpeg -f v4l2 -i /dev/video4 \
+  -vcodec libx264 -preset ultrafast -tune zerolatency \
+  -f flv rtmp://localhost:1935/live/cam1
+```
+
+Replace `/dev/video4` with whatever device appeared above.
+Replace `cam1` with `cam2`, `cam3` etc. for each camera.
+
+Leave this terminal running.
+
+### On the laptop — Terminal 3 (register camera)
 ```bash
 curl -X POST http://localhost:4000/cameras/connect \
   -H "Content-Type: application/json" \
   -d '{"name":"cam1","streamUrl":"rtmp://nginx-rtmp:1935/live/cam1"}'
 ```
 
-Repeat for cam2, cam3, etc.
+The camera will appear in the dashboard and stay **active** as long as FFmpeg is running.
 
-Check all cameras are connected:
-```bash
-curl http://localhost:4000/cameras
+### Verify in VLC
+Open VLC → Media → Open Network Stream:
 ```
+http://10.177.87.23:8080/hls/cam1.m3u8
+```
+
+You will see the phone camera live within 3-4 seconds.
 
 ---
 
 ## 5. Step-by-Step: Director Control Panel
 
-Open in browser on the laptop:
+Open in browser:
 ```
-http://localhost:3000
+http://10.177.87.23:3000
 ```
 
-**Camera grid** — shows all connected cameras. Click any camera to switch to it live.
-
-**Scene Switcher** — choose Cut (instant) or Fade (smooth) transition, then click a scene.
-
-**Score panel** — enter team names and click Start Match. Use +/− buttons to score.
-
-**Broadcast panel** — paste your YouTube stream key and click Go Live.
-
-**Health panel** — shows API status, camera count, stream count, broadcast state.
+- **Camera grid** — shows all connected cameras. Click any to switch to it live.
+- **Scene Switcher** — choose Cut (instant) or Fade transition, click a scene.
+- **Score panel** — enter team names, click Start Match, use +/− to score.
+- **Broadcast panel** — paste YouTube key and click Go Live.
+- **Health panel** — shows API, cameras, streams, broadcast state.
 
 ---
 
 ## 6. Step-by-Step: Scorekeeper Phone App
 
-On the scorekeeper's phone, open the browser and go to:
+On the scorekeeper's phone, open browser:
 ```
-http://10.248.125.23:3002
+http://10.177.87.23:3002
 ```
 
-**Install as an app:**
+**Install as app:**
 - Android Chrome: tap menu (⋮) → "Add to Home Screen"
-- iPhone Safari: tap Share → "Add to Home Screen"
 
 **Using the app:**
-1. Enter PIN: `1234` (default)
-2. Enter team names and tap **Start Match**
-3. Tap the large `+` buttons to score
-4. Tap `−` to undo a point
-5. Tap **Complete Set** and confirm when a set ends
-6. The app works offline — scores sync when WiFi reconnects
+1. Enter PIN: `1234`
+2. Enter team names → tap **Start Match**
+3. Tap large `+` to score, `−` to undo
+4. Tap **Complete Set** and confirm when a set ends
+5. Works offline — syncs when WiFi reconnects
 
 ---
 
 ## 7. Step-by-Step: OBS Setup
 
-1. Open OBS Studio
-2. Create a new Scene called "VollyCast"
-3. Add a **Media Source** (for the video):
-   - Uncheck "Local File"
-   - Input: `http://10.248.125.23:8080/hls/cam1.m3u8`
-4. Add a **Browser Source** (for the scoreboard):
-   - URL: `http://10.248.125.23:3001`
+1. Open OBS → add **Media Source**:
+   - Input: `http://10.177.87.23:8080/hls/cam1.m3u8`
+2. Add **Browser Source** (scoreboard overlay):
+   - URL: `http://10.177.87.23:3001`
    - Width: 1920, Height: 1080
-   - Check "Shutdown source when not visible"
-5. Position the browser source on top of the video
-
-The scoreboard will appear as a transparent overlay.
 
 ---
 
 ## 8. Step-by-Step: Go Live on YouTube
 
-### Get your YouTube stream key
-1. Go to [YouTube Studio](https://studio.youtube.com)
-2. Click **Go Live** (top right)
-3. Choose **Stream** → Copy your **Stream key**
+Get your stream key from [YouTube Studio](https://studio.youtube.com) → Go Live → Stream → copy Stream key.
 
-### Start the broadcast from the dashboard
-In the director panel at `http://localhost:3000`:
-1. Open **Broadcast** panel
-2. Select **YouTube**
-3. Paste your stream key
-4. Set Input URL: `rtmp://nginx-rtmp:1935/live/cam1`
-5. Click **Go Live on YouTube**
-
-Or with curl:
-```bash
-curl -X POST http://localhost:4000/broadcast/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "platform": "youtube",
-    "streamKey": "YOUR_STREAM_KEY",
-    "inputUrl": "rtmp://nginx-rtmp:1935/live/cam1"
-  }'
-```
-
-Check broadcast is live:
-```bash
-curl http://localhost:4000/broadcast/status
-```
+In the dashboard Broadcast panel:
+1. Select **YouTube**
+2. Paste stream key
+3. Set Input URL: `rtmp://nginx-rtmp:1935/live/cam1`
+4. Click **Go Live on YouTube**
 
 ---
 
@@ -193,11 +182,10 @@ curl http://localhost:4000/broadcast/status
 
 | Action | How |
 |---|---|
-| Switch camera angle | Click camera in dashboard or ScenePanel |
+| Switch camera | Click camera in dashboard |
 | Score a point | Tap + in dashboard or phone app |
 | Undo a point | Tap − in dashboard or phone app |
 | Complete a set | Tap "Complete Set" in phone app → confirm |
-| Check system health | Health panel in dashboard |
 | Stop broadcast | Click "Stop Broadcast" in dashboard |
 
 ---
@@ -205,14 +193,10 @@ curl http://localhost:4000/broadcast/status
 ## 10. After the Match
 
 ```bash
-# Stop the broadcast
-curl -X POST http://localhost:4000/broadcast/stop
-
-# Stop all containers
 docker compose down
 ```
 
-Recordings are saved in the Docker volume `volly-ball_recordings-data`. To copy them out:
+Copy recordings:
 ```bash
 docker run --rm \
   -v volly-ball_recordings-data:/data \
@@ -228,45 +212,41 @@ docker run --rm \
 |---|---|
 | Start system | `docker compose up -d` |
 | Stop system | `docker compose down` |
-| Director dashboard | `http://localhost:3000` |
-| Scorekeeper app (phone) | `http://10.248.125.23:3002` |
-| Scoreboard overlay (OBS) | `http://10.248.125.23:3001` |
+| Director dashboard | `http://10.177.87.23:3000` |
+| Scorekeeper app (phone) | `http://10.177.87.23:3002` |
+| Scoreboard overlay (OBS) | `http://10.177.87.23:3001` |
 | API health | `http://localhost:4000/health` |
 | Camera list | `http://localhost:4000/cameras` |
-| Broadcast status | `http://localhost:4000/broadcast/status` |
-| Watch cam1 in VLC | `http://10.248.125.23:8080/hls/cam1.m3u8` |
+| Watch cam1 in VLC | `http://10.177.87.23:8080/hls/cam1.m3u8` |
 | Scorekeeper PIN | `1234` |
+| Connect DroidCam | `droidcam-cli <PHONE_IP> 4747` |
+| Push camera to VollyCast | `ffmpeg -f v4l2 -i /dev/video4 -vcodec libx264 -preset ultrafast -tune zerolatency -f flv rtmp://localhost:1935/live/cam1` |
 
 ---
 
 ## 12. Troubleshooting
 
-**Phone can't connect to RTMP**
-- Check phone is on the same WiFi/hotspot as laptop
-- Run `hostname -I` to confirm the laptop IP
-- Check Docker is running: `docker ps`
+**DroidCam not connecting**
+- Phone and laptop must be on same WiFi/hotspot
+- Check IP shown in DroidCam app matches what you type in `droidcam-cli`
 
-**VLC says "cannot open MRL"**
-- The phone must be streaming first — tap Go Live before opening VLC
-- Wait 3–4 seconds after tapping Go Live before opening VLC
+**Camera shows "Error" in dashboard**
+- FFmpeg must be running and pushing to nginx first
+- Check: `docker exec vollycast-nginx-rtmp ls /tmp/hls/` — you should see `cam1.m3u8`
 
-**Scoreboard not updating**
-- A match must be created first in the dashboard or app
-- Make sure the correct `matchId` is being used
+**VLC shows "cannot open MRL"**
+- FFmpeg must be running first before opening VLC
+- Wait 3-4 seconds after starting FFmpeg
 
-**Broadcast stops reconnecting**
-- Reconnects up to 5 times with exponential backoff
-- Check your YouTube stream key is correct
-- Check your laptop's internet connection
+**Multiple duplicate cameras in dashboard**
+- Restart API to clear: `docker compose restart vollycast-api`
+- Then register each camera only once
+
+**App shows "offline" on phone**
+- Scores queue locally and sync when WiFi reconnects automatically
 
 **Docker port already in use**
 ```bash
 docker compose down
-lsof -ti:1935 | xargs kill -9
-lsof -ti:4000 | xargs kill -9
 docker compose up -d
 ```
-
-**App shows "offline" on the phone**
-- The phone's WiFi dropped — score actions are queued locally
-- Reconnect WiFi and scores will sync automatically within 5 seconds
