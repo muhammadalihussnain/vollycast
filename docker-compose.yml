@@ -47,6 +47,21 @@ services:
     networks:
       - vollycast-net
 
+  # ── Web Dashboard ─────────────────────────────────────────────────────────────
+  # Director's control panel — open http://localhost:3000 in browser
+  web-dashboard:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.dashboard
+    container_name: vollycast-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - vollycast-api
+    restart: unless-stopped
+    networks:
+      - vollycast-net
+
 volumes:
   hls-data:
   recordings-data:
