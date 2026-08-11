@@ -10,7 +10,8 @@
       "@vollycast/stream-engine":      ["../stream-engine/dist/index.d.ts"],
       "@vollycast/scoreboard-overlay": ["../scoreboard-overlay/dist/index.d.ts"],
       "@vollycast/recording-manager":  ["../recording-manager/dist/index.d.ts"],
-      "@vollycast/broadcast-manager":  ["../broadcast-manager/dist/index.d.ts"]
+      "@vollycast/broadcast-manager":  ["../broadcast-manager/dist/index.d.ts"],
+      "@vollycast/scene-switcher":      ["../scene-switcher/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*"],

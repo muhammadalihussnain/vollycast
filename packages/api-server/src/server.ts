@@ -6,6 +6,7 @@
  *   - Stream Engine             (Module 2)
  *   - Scoreboard Overlay        (Module 3)
  *   - Broadcast Manager         (Module 4)
+ *   - Scene Switcher            (Module 5)
  *   - Recording Manager         (Module 6)
  *
  * All modules communicate through the shared EventBus — no direct calls.
@@ -24,12 +25,13 @@ import { createServer as createHttpServer } from 'node:http';
 import express, { type Request, type Response } from 'express';
 
 import { EventBus, NETWORK, HTTP_STATUS } from '@vollycast/shared';
-import type { PlatformType } from '@vollycast/shared';
+import type { PlatformType, TransitionType } from '@vollycast/shared';
 import { CameraIngestionService } from '@vollycast/camera-ingestion';
 import { StreamEngine }           from '@vollycast/stream-engine';
 import { MatchService, OverlaySocket, createApp as createOverlayApp } from '@vollycast/scoreboard-overlay';
 import { RecordingManager }       from '@vollycast/recording-manager';
 import { BroadcastManager }       from '@vollycast/broadcast-manager';
+import { SceneSwitcher }          from '@vollycast/scene-switcher';
 
 import { pino } from 'pino';
 
@@ -76,6 +78,9 @@ const broadcastManager = new BroadcastManager(
     ? { eventBus: bus, encryptionKey: STREAM_KEY_SECRET }
     : { eventBus: bus },
 );
+
+// ── Module 5: Scene Switcher ──────────────────────────────────────────────────
+const sceneSwitcher = new SceneSwitcher({ eventBus: bus });
 
 // ── API server — RTMP callbacks + camera management ─────────────────────────
 const apiApp = express();
@@ -250,6 +255,104 @@ apiApp.post('/broadcast/stop', (_req: Request, res: Response): void => {
   res.status(HTTP_STATUS.OK).json({ stopped: true, status: broadcastManager.getStatus() });
 });
 
+// ── Scene endpoints ──────────────────────────────────────────────────────────
+
+/**
+ * List all registered scenes.
+ * GET /scenes
+ */
+apiApp.get('/scenes', (_req: Request, res: Response): void => {
+  res.json(sceneSwitcher.getScenes());
+});
+
+/**
+ * Get the currently active scene.
+ * GET /scenes/current
+ */
+apiApp.get('/scenes/current', (_req: Request, res: Response): void => {
+  const scene = sceneSwitcher.getCurrentScene();
+  if (scene === undefined) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'No active scene' });
+    return;
+  }
+  res.json(scene);
+});
+
+/**
+ * Register a scene for a camera.
+ * POST /scenes/register
+ * Body: { name, cameraId, thumbnailUrl? }
+ *
+ * Example:
+ *   curl -X POST http://localhost:4000/scenes/register \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"name":"Side Left","cameraId":"<camera-id>"}'
+ */
+apiApp.post('/scenes/register', (req: Request, res: Response): void => {
+  const body = req.body as Record<string, string>;
+  const name = body['name'];
+  const cameraId = body['cameraId'];
+  const thumbnailUrl = body['thumbnailUrl'];
+
+  if (name === undefined || cameraId === undefined) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'name and cameraId are required' });
+    return;
+  }
+
+  const options = thumbnailUrl !== undefined
+    ? { name, cameraId, thumbnailUrl }
+    : { name, cameraId };
+
+  const scene = sceneSwitcher.registerScene(options);
+  res.status(HTTP_STATUS.CREATED).json(scene);
+});
+
+/**
+ * Switch to a scene by ID.
+ * POST /scenes/switch
+ * Body: { sceneId, transition? }
+ * transition: 'cut' (default, instant) | 'fade' (smooth, ~500ms)
+ *
+ * Example (cut):
+ *   curl -X POST http://localhost:4000/scenes/switch \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"sceneId":"<scene-id>"}'
+ *
+ * Example (fade):
+ *   curl -X POST http://localhost:4000/scenes/switch \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"sceneId":"<scene-id>","transition":"fade"}'
+ */
+apiApp.post('/scenes/switch', (req: Request, res: Response): void => {
+  const body = req.body as Record<string, string>;
+  const sceneId = body['sceneId'];
+  const transition = (body['transition'] ?? 'cut') as TransitionType;
+
+  if (sceneId === undefined) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'sceneId is required' });
+    return;
+  }
+
+  const validTransitions: TransitionType[] = ['cut', 'fade'];
+  if (!validTransitions.includes(transition)) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({
+      error: `transition must be one of: ${validTransitions.join(', ')}`,
+    });
+    return;
+  }
+
+  void sceneSwitcher.switchTo(sceneId, transition).then((result) => {
+    res.status(HTTP_STATUS.OK).json(result);
+  }).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    if (message.includes('not found')) {
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: message });
+    } else {
+      res.status(HTTP_STATUS.BAD_REQUEST).json({ error: message });
+    }
+  });
+});
+
 // ── Start everything ─────────────────────────────────────────────────────────
 async function start(): Promise<void> {
   // Start modules
@@ -274,6 +377,7 @@ async function start(): Promise<void> {
 function shutdown(): void {
   logger.info({}, 'Shutting down VollyCast...');
   broadcastManager.stop();
+  sceneSwitcher.stop();
   cameraService.stop();
   streamEngine.stop();
   recordingManager.stop();
