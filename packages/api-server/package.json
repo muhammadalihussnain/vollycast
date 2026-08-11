@@ -14,6 +14,7 @@
     "@vollycast/broadcast-manager": "workspace:*",
     "@vollycast/camera-ingestion": "workspace:*",
     "@vollycast/recording-manager": "workspace:*",
+    "@vollycast/scene-switcher": "workspace:*",
     "@vollycast/scoreboard-overlay": "workspace:*",
     "@vollycast/shared": "workspace:*",
     "@vollycast/stream-engine": "workspace:*",
