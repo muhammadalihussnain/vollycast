@@ -131,3 +131,20 @@ export const VOLLYCAST_EVENTS = {
 } as const;
 
 export type VollyCastEventName = (typeof VOLLYCAST_EVENTS)[keyof typeof VOLLYCAST_EVENTS];
+
+// ─── HTTP Status Codes ────────────────────────────────────────────────────────
+
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  BAD_REQUEST: 400,
+  NOT_FOUND: 404,
+  INTERNAL_SERVER_ERROR: 500,
+} as const;
+
+// ─── Validation Limits ────────────────────────────────────────────────────────
+
+export const VALIDATION = {
+  TEAM_NAME_MAX_LENGTH: 50,
+  TEAM_NAME_MIN_LENGTH: 1,
+} as const;

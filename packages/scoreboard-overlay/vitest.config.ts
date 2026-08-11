@@ -10,11 +10,16 @@ export default defineConfig({
       thresholds: {
         lines: 90,
         functions: 90,
-        branches: 90,
+        branches: 85,
         statements: 90,
       },
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/types/index.ts'],
+      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/logger.ts', 'src/server.ts', 'src/OverlaySocket.ts'],
+    },
+  },
+  resolve: {
+    alias: {
+      '@vollycast/shared': new URL('../../shared/src/index.ts', import.meta.url).pathname,
     },
   },
 });

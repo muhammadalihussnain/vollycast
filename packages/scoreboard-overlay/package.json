@@ -1,0 +1,30 @@
+{
+  "name": "@vollycast/scoreboard-overlay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --run",
+    "coverage": "vitest run --coverage",
+    "dev": "node --loader ts-node/esm src/index.ts"
+  },
+  "dependencies": {
+    "@vollycast/shared": "workspace:*",
+    "express": "5.1.0",
+    "socket.io": "4.8.1",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "20.14.0",
+    "@types/supertest": "6.0.2",
+    "@vitest/coverage-v8": "2.1.9",
+    "supertest": "7.0.0",
+    "typescript": "5.5.4",
+    "vitest": "2.1.9"
+  }
+}

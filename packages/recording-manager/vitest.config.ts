@@ -14,7 +14,12 @@ export default defineConfig({
         statements: 90,
       },
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/types/index.ts'],
+      exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/logger.ts'],
+    },
+  },
+  resolve: {
+    alias: {
+      '@vollycast/shared': new URL('../../shared/src/index.ts', import.meta.url).pathname,
     },
   },
 });
