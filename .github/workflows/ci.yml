@@ -30,6 +30,12 @@ jobs:
       - name: Build shared package
         run: pnpm --filter @vollycast/shared build
 
+      - name: Build stream-engine (required by broadcast-manager typecheck)
+        run: pnpm --filter @vollycast/stream-engine build
+
+      - name: Build all packages (required by api-server typecheck)
+        run: pnpm --filter @vollycast/camera-ingestion build && pnpm --filter @vollycast/scoreboard-overlay build && pnpm --filter @vollycast/recording-manager build && pnpm --filter @vollycast/broadcast-manager build
+
       - name: Type check
         run: pnpm typecheck
 
