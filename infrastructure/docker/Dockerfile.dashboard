@@ -16,6 +16,7 @@ RUN pnpm --filter @vollycast/web-dashboard build
 FROM nginx:alpine AS runtime
 
 COPY --from=builder /app/packages/web-dashboard/dist /usr/share/nginx/html
+
 COPY infrastructure/nginx/dashboard.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000

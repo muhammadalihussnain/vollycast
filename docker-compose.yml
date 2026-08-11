@@ -47,8 +47,6 @@ services:
       - vollycast-net
 
   # ── Web Dashboard ─────────────────────────────────────────────────────────────
-  # Director's control panel
-  # Open: http://localhost:3000
   web-dashboard:
     build:
       context: .
@@ -61,10 +59,6 @@ services:
     restart: unless-stopped
     networks:
       - vollycast-net
-
-  # ── Mobile Controller ─────────────────────────────────────────────────────────
-  # Scorekeeper PWA — open on phone browser (must be on same WiFi/hotspot)
-  # Open: http://10.248.125.23:3002
   mobile-controller:
     build:
       context: .
@@ -77,7 +71,6 @@ services:
     restart: unless-stopped
     networks:
       - vollycast-net
-
 volumes:
   hls-data:
   recordings-data:
