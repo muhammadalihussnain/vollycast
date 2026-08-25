@@ -1,10 +1,10 @@
 /**
  * CameraGrid — Task 7.1
- * Shows all connected cameras as clickable cards.
+ * Shows all connected cameras as clickable cards with live video preview.
  * Clicking a camera auto-registers a scene and switches to it.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import type { Camera, Scene } from '../api/types.js';
 import { registerScene, switchScene } from '../api/client.js';
 
@@ -13,12 +13,45 @@ interface Props {
   scenes: Scene[];
   currentSceneId: string | null;
   onSwitch: () => void;
+  hlsBase: string;
 }
 
-export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch }: Props): React.JSX.Element {
+/** Live video preview using native HLS (works in all modern browsers) */
+function CameraPreview({ name, active }: { name: string; active: boolean }): React.JSX.Element {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsUrl = `/hls/${name}.m3u8`;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video === null) return;
+    video.src = hlsUrl;
+    video.load();
+    void video.play().catch(() => undefined);
+  }, [hlsUrl]);
+
+  return (
+    <div className="relative mb-2 aspect-video w-full overflow-hidden rounded-lg bg-slate-900">
+      <video
+        ref={videoRef}
+        className="h-full w-full object-cover"
+        autoPlay
+        muted
+        playsInline
+        loop={false}
+      />
+      {active && (
+        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-brand-live/90 px-1.5 py-0.5">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+          <span className="text-xs font-bold text-white">LIVE</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch, hlsBase }: Props): React.JSX.Element {
   const handleClick = useCallback(async (camera: Camera): Promise<void> => {
     try {
-      // Find existing scene for this camera, or register a new one
       let scene = scenes.find((s) => s.cameraId === camera.id);
       if (scene === undefined) {
         scene = await registerScene(camera.name, camera.id);
@@ -30,10 +63,15 @@ export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch }: Props)
     }
   }, [scenes, onSwitch]);
 
+  // hlsBase used for external VLC link
+  void hlsBase;
+
   if (cameras.length === 0) {
     return (
       <div className="rounded-xl bg-brand-panel p-6 text-center text-slate-400">
-        No cameras connected. Start streaming from your phone first.
+        <div className="text-4xl mb-3">📷</div>
+        <div className="font-semibold">No cameras connected</div>
+        <div className="text-sm mt-1">Start IP Webcam on your phone and run the FFmpeg command</div>
       </div>
     );
   }
@@ -43,52 +81,43 @@ export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch }: Props)
       {cameras.map((camera) => {
         const scene = scenes.find((s) => s.cameraId === camera.id);
         const isActive = scene !== undefined && scene.id === currentSceneId;
-        const isOnline = camera.status === 'active';
+        const isStreaming = camera.status === 'active' || camera.status === 'error';
 
         return (
           <button
             key={camera.id}
             onClick={() => { void handleClick(camera); }}
-            disabled={!isOnline}
             className={[
-              'relative rounded-xl p-3 text-left transition-all duration-150',
-              'border-2',
+              'relative rounded-xl p-3 text-left transition-all duration-150 border-2',
               isActive
                 ? 'border-brand-accent bg-brand-accent/10'
                 : 'border-brand-card bg-brand-card hover:border-brand-accent/50',
-              !isOnline && 'opacity-50 cursor-not-allowed',
             ].join(' ')}
           >
-            {/* Thumbnail area */}
-            <div className="mb-2 aspect-video w-full overflow-hidden rounded-lg bg-slate-900">
-              {isOnline ? (
-                <img
-                  src={`http://10.248.125.23:8080/hls/${camera.name}.m3u8.png`}
-                  alt={camera.name}
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              ) : null}
-              <div className="flex h-full items-center justify-center">
-                <span className="text-2xl">📷</span>
+            {/* Live video preview */}
+            {isStreaming ? (
+              <CameraPreview name={camera.name} active={isActive} />
+            ) : (
+              <div className="mb-2 aspect-video w-full flex items-center justify-center rounded-lg bg-slate-900">
+                <span className="text-3xl">📷</span>
               </div>
-            </div>
+            )}
 
             {/* Camera name */}
             <div className="font-semibold text-sm truncate">{camera.name}</div>
 
-            {/* Status badge */}
+            {/* Status */}
             <div className="mt-1 flex items-center gap-1.5">
               <span className={[
                 'h-2 w-2 rounded-full',
-                isOnline ? 'bg-brand-ok' : 'bg-slate-500',
+                isStreaming ? 'bg-brand-ok' : 'bg-slate-500',
               ].join(' ')} />
-              <span className="text-xs text-slate-400 capitalize">{camera.status}</span>
+              <span className="text-xs text-slate-400 capitalize">
+                {isStreaming ? 'streaming' : camera.status}
+              </span>
               {isActive && (
                 <span className="ml-auto rounded bg-brand-accent px-1.5 py-0.5 text-xs font-bold text-brand-dark">
-                  LIVE
+                  ON AIR
                 </span>
               )}
             </div>

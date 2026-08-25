@@ -84,6 +84,7 @@ export function App(): React.JSX.Element {
               scenes={scenes ?? []}
               currentSceneId={currentSceneId}
               onSwitch={handleCameraSwitch}
+              hlsBase={`http://${window.location.hostname}:8080`}
             />
           </div>
 

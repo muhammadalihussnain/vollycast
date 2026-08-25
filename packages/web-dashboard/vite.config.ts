@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      '/hls': { target: 'http://localhost:8080', changeOrigin: true },
       '/api': { target: 'http://localhost:4000', changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') },
       '/cameras': { target: 'http://localhost:4000', changeOrigin: true },
       '/scenes': { target: 'http://localhost:4000', changeOrigin: true },
