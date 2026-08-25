@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useRef, useEffect } from 'react';
+import Hls from 'hls.js';
 import type { Camera, Scene } from '../api/types.js';
 import { registerScene, switchScene } from '../api/client.js';
 
@@ -16,17 +17,37 @@ interface Props {
   hlsBase: string;
 }
 
-/** Live video preview using native HLS (works in all modern browsers) */
+/** Live video preview using hls.js */
 function CameraPreview({ name, active }: { name: string; active: boolean }): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const hlsUrl = `/hls/${name}.m3u8`;
 
   useEffect(() => {
     const video = videoRef.current;
     if (video === null) return;
-    video.src = hlsUrl;
-    video.load();
-    void video.play().catch(() => undefined);
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        lowLatencyMode: true,
+        backBufferLength: 0,
+      });
+      hlsRef.current = hls;
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        void video.play().catch(() => undefined);
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl') !== '') {
+      // Safari native HLS
+      video.src = hlsUrl;
+      void video.play().catch(() => undefined);
+    }
+
+    return (): void => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+    };
   }, [hlsUrl]);
 
   return (
@@ -37,7 +58,6 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
         autoPlay
         muted
         playsInline
-        loop={false}
       />
       {active && (
         <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-brand-live/90 px-1.5 py-0.5">
