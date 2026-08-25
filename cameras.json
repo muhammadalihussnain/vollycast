@@ -1,0 +1,6 @@
+[
+  {
+    "name": "cam1",
+    "streamUrl": "rtmp://nginx-rtmp:1935/live/cam1"
+  }
+]
