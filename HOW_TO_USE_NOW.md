@@ -1,18 +1,15 @@
 # How to Use VollyCast Right Now
 
-Your laptop IP: **10.177.87.23**
-*(Run `hostname -I | awk '{print $1}'` to confirm)*
+Get your laptop IP first:
+```bash
+hostname -I | awk '{print $1}'
+```
 
 ---
 
-## What you need
+## What you need on each camera phone
 
-| Item | What it is |
-|---|---|
-| Your laptop | Runs VollyCast |
-| Android phone(s) | Camera — needs **DroidCam** app installed |
-| DroidCam app | Free on Play Store by Dev47Apps |
-| Phone hotspot | Connects phone and laptop on same network |
+Install **IP Webcam** from Google Play Store (free, by Pavel Khlebovich).
 
 ---
 
@@ -25,24 +22,31 @@ docker compose up -d
 
 ---
 
-## Step 2 — Connect phone camera (DroidCam)
+## Step 2 — Connect a camera phone
 
-**On phone:** Open DroidCam app → note the WiFi IP shown → tap Start
+**On phone:** Open IP Webcam → scroll to bottom → tap **Start server**
+Note the IP shown (e.g. `http://192.168.0.196:8080`)
 
-**Terminal 1 — connect:**
+**On laptop (one terminal per camera):**
 ```bash
-droidcam-cli 10.177.87.79 4747
-```
-Note the video device shown (e.g. `/dev/video4`)
-
-**Terminal 2 — push to VollyCast:**
-```bash
-ffmpeg -f v4l2 -i /dev/video4 \
+# Camera 1
+ffmpeg -i http://192.168.0.196:8080/video \
   -vcodec libx264 -preset ultrafast -tune zerolatency \
   -f flv rtmp://localhost:1935/live/cam1
+
+# Camera 2
+ffmpeg -i http://192.168.0.202:8080/video \
+  -vcodec libx264 -preset ultrafast -tune zerolatency \
+  -f flv rtmp://localhost:1935/live/cam2
 ```
 
-**Terminal 3 — register camera (once only):**
+**Verify stream reached nginx:**
+```bash
+docker exec vollycast-nginx-rtmp ls /tmp/hls/
+```
+Must show `cam1.m3u8` before registering.
+
+**Register camera (once per camera):**
 ```bash
 curl -X POST http://localhost:4000/cameras/connect \
   -H "Content-Type: application/json" \
@@ -51,44 +55,37 @@ curl -X POST http://localhost:4000/cameras/connect \
 
 ---
 
-## Step 3 — Watch stream in VLC
+## Step 3 — Open director dashboard
 
 ```
-http://10.177.87.23:8080/hls/cam1.m3u8
+http://<LAPTOP_IP>:3000
 ```
+
+Click a camera card to switch to it. Live video shows in each card.
 
 ---
 
-## Step 4 — Open director dashboard
+## Step 4 — Scorekeeper phone app
 
 ```
-http://10.177.87.23:3000
-```
-
----
-
-## Step 5 — Open scorekeeper app on phone
-
-```
-http://10.177.87.23:3002
+http://<LAPTOP_IP>:3002
 ```
 PIN: `1234`
 
 ---
 
-## Step 6 — Scoreboard overlay in OBS
+## Step 5 — Scoreboard overlay in OBS
 
-Add Browser Source → URL: `http://10.177.87.23:3001`
+Add Browser Source → URL: `http://<LAPTOP_IP>:3001`
 
 ---
 
-## Step 7 — Go live on YouTube
+## Step 6 — Go live on YouTube
 
 In dashboard Broadcast panel:
-- Select YouTube
-- Paste your stream key
+- Select YouTube → paste stream key
 - Input URL: `rtmp://nginx-rtmp:1935/live/cam1`
-- Click Go Live
+- Click Go Live on YouTube
 
 ---
 
