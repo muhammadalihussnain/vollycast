@@ -31,6 +31,10 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
       const hls = new Hls({
         lowLatencyMode: true,
         backBufferLength: 0,
+        maxBufferLength: 4,
+        maxMaxBufferLength: 8,
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 4,
       });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);

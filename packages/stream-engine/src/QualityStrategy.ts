@@ -75,6 +75,8 @@ export function buildFfmpegArgs(
   const { videoArgs, audioArgs, formatArgs } = strategy.buildArgs();
   return [
     '-re',
+    '-fflags', 'nobuffer',
+    '-flags', 'low_delay',
     '-i', inputUrl,
     ...videoArgs,
     ...audioArgs,
