@@ -1,8 +1,4 @@
 [
-  { "name": "cam1", "ip": "10.203.174.19" },
-  { "name": "cam2", "ip": "192.168.0.202" },
-  { "name": "cam3", "ip": "192.168.0.203" },
-  { "name": "cam4", "ip": "192.168.0.204" },
-  { "name": "cam5", "ip": "192.168.0.205" },
-  { "name": "cam6", "ip": "192.168.0.206" }
+  { "name": "cam1", "ip": "REPLACE_WITH_PHONE1_IP" },
+  { "name": "cam2", "ip": "REPLACE_WITH_PHONE2_IP" }
 ]

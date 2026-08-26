@@ -15,7 +15,7 @@
 
 set -e
 
-PROJECT_DIR="/home/muhammad/Documents/volly-ball"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CAMERAS_FILE="$PROJECT_DIR/cameras.json"
 cd "$PROJECT_DIR"
 
