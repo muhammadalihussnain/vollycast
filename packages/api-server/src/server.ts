@@ -119,6 +119,12 @@ apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
     return;
   }
 
+  // Remove existing camera with same name to prevent duplicates
+  const existing = cameraService.getCameras().find((c: { name: string }) => c.name === name);
+  if (existing !== undefined) {
+    try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
+  }
+
   try {
     const camera = cameraService.connect({ name, streamUrl });
     res.status(HTTP_STATUS.CREATED).json(camera);
