@@ -166,6 +166,13 @@ apiApp.post('/rtmp/on_publish', (req: Request, res: Response): void => {
   logger.info({ streamKey }, 'Phone started streaming');
 
   try {
+    // If camera with this name already exists, just update its status — do not register again
+    const existing = cameraService.getCameras().find((c: { name: string }) => c.name === streamKey);
+    if (existing !== undefined) {
+      logger.info({ streamKey }, 'Camera already registered — skipping duplicate');
+      res.status(HTTP_STATUS.OK).send('OK');
+      return;
+    }
     cameraService.connect({ name: streamKey, streamUrl });
     res.status(HTTP_STATUS.OK).send('OK');
   } catch (err) {
