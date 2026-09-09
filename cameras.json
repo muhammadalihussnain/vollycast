@@ -1,4 +1,3 @@
 [
-  { "name": "cam1", "ip": "REPLACE_WITH_PHONE1_IP" },
-  { "name": "cam2", "ip": "REPLACE_WITH_PHONE2_IP" }
+  { "name": "cam1", "ip": "192.168.100.87" }
 ]
