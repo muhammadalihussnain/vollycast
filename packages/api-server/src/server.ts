@@ -163,10 +163,18 @@ apiApp.post('/rtmp/on_publish', (req: Request, res: Response): void => {
   const streamKey = (req.body as Record<string, string>)['name'] ?? 'unknown';
   const streamUrl = `rtmp://${RTMP_HOST}:${RTMP_PORT}/live/${streamKey}`;
 
+  // Ignore internal re-publish streams from the Stream Engine
+  // These use UUID stream keys (e.g. af53043b-ec79-45c6-b5c8-3e50b7b91a29)
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(streamKey)) {
+    res.status(HTTP_STATUS.OK).send('OK');
+    return;
+  }
+
   logger.info({ streamKey }, 'Phone started streaming');
 
   try {
-    // If camera with this name already exists, just update its status — do not register again
+    // If camera with this name already exists — skip, do not register again
     const existing = cameraService.getCameras().find((c: { name: string }) => c.name === streamKey);
     if (existing !== undefined) {
       logger.info({ streamKey }, 'Camera already registered — skipping duplicate');
