@@ -45,11 +45,11 @@ export const getHealth = (): Promise<HealthState> =>
 export const getCameras = (): Promise<Camera[]> =>
   request<Camera[]>('/cameras');
 
-export const connectCamera = (name: string, streamUrl: string): Promise<Camera> =>
-  post<Camera>('/cameras/connect', { name, streamUrl });
-
 export const disconnectCamera = (name: string): Promise<{ disconnected: string }> =>
   post<{ disconnected: string }>('/cameras/disconnect', { name });
+
+export const connectCamera = (name: string, streamUrl: string): Promise<Camera> =>
+  post<Camera>('/cameras/connect', { name, streamUrl });
 
 // ── Scenes ────────────────────────────────────────────────────────────────────
 
