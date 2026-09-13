@@ -85,6 +85,26 @@ curl -X POST http://localhost:4000/cameras/connect \
   -d '{"name":"cam3","streamUrl":"rtmp://nginx-rtmp:1935/live/cam3"}'
 ```
 
+### Unregister a camera
+
+```bash
+curl -X POST http://localhost:4000/cameras/disconnect \
+  -H "Content-Type: application/json" \
+  -d '{"name":"cam1"}'
+```
+
+### List all registered cameras
+
+```bash
+curl http://localhost:4000/cameras
+```
+
+### Clear ALL cameras at once
+
+```bash
+docker compose restart vollycast-api
+```
+
 ---
 
 ## Step 5 — Open dashboard in browser

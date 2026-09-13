@@ -1,19 +1,20 @@
 /**
  * CameraGrid — Task 7.1
  * Shows all connected cameras as clickable cards with live video preview.
- * Clicking a camera auto-registers a scene and switches to it.
+ * Clicking a camera switches to it. X button removes it.
  */
 
 import { useCallback, useRef, useEffect } from 'react';
 import Hls from 'hls.js';
 import type { Camera, Scene } from '../api/types.js';
-import { registerScene, switchScene } from '../api/client.js';
+import { registerScene, switchScene, disconnectCamera } from '../api/client.js';
 
 interface Props {
   cameras: Camera[];
   scenes: Scene[];
   currentSceneId: string | null;
   onSwitch: () => void;
+  onRemove: () => void;
   hlsBase: string;
 }
 
@@ -43,7 +44,6 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
         void video.play().catch(() => undefined);
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl') !== '') {
-      // Safari native HLS
       video.src = hlsUrl;
       void video.play().catch(() => undefined);
     }
@@ -55,14 +55,9 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
   }, [hlsUrl]);
 
   return (
-    <div className="relative mb-2 w-full overflow-hidden rounded-lg bg-slate-900" style={{ aspectRatio: '16/9', minHeight: '180px' }}>
-      <video
-        ref={videoRef}
-        className="h-full w-full object-cover"
-        autoPlay
-        muted
-        playsInline
-      />
+    <div className="relative mb-2 w-full overflow-hidden rounded-lg bg-slate-900"
+      style={{ aspectRatio: '16/9', minHeight: '180px' }}>
+      <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
       {active && (
         <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-brand-live/90 px-1.5 py-0.5">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
@@ -73,7 +68,9 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
   );
 }
 
-export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch, hlsBase }: Props): React.JSX.Element {
+export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch, onRemove, hlsBase }: Props): React.JSX.Element {
+  void hlsBase;
+
   const handleClick = useCallback(async (camera: Camera): Promise<void> => {
     try {
       let scene = scenes.find((s) => s.cameraId === camera.id);
@@ -87,8 +84,16 @@ export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch, hlsBase 
     }
   }, [scenes, onSwitch]);
 
-  // hlsBase used for external VLC link
-  void hlsBase;
+  const handleRemove = useCallback(async (camera: Camera, e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation(); // prevent triggering handleClick
+    if (!window.confirm(`Remove ${camera.name} from dashboard?`)) return;
+    try {
+      await disconnectCamera(camera.name);
+      onRemove();
+    } catch (err) {
+      console.error('Remove camera failed:', err);
+    }
+  }, [onRemove]);
 
   if (cameras.length === 0) {
     return (
@@ -108,44 +113,59 @@ export function CameraGrid({ cameras, scenes, currentSceneId, onSwitch, hlsBase 
         const isStreaming = camera.status === 'active' || camera.status === 'error';
 
         return (
-          <button
+          <div
             key={camera.id}
-            onClick={() => { void handleClick(camera); }}
             className={[
-              'relative rounded-xl p-3 text-left transition-all duration-150 border-2',
+              'relative rounded-xl p-3 transition-all duration-150 border-2',
               isActive
                 ? 'border-brand-accent bg-brand-accent/10'
-                : 'border-brand-card bg-brand-card hover:border-brand-accent/50',
+                : 'border-brand-card bg-brand-card',
             ].join(' ')}
           >
-            {/* Live video preview — larger aspect ratio */}
-            {isStreaming ? (
-              <CameraPreview name={camera.name} active={isActive} />
-            ) : (
-              <div className="mb-2 w-full flex items-center justify-center rounded-lg bg-slate-900" style={{ aspectRatio: '16/9', minHeight: '180px' }}>
-                <span className="text-3xl">📷</span>
-              </div>
-            )}
+            {/* Remove button — top left corner */}
+            <button
+              onClick={(e) => { void handleRemove(camera, e); }}
+              title={`Remove ${camera.name}`}
+              className="absolute top-1.5 left-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600/80 text-white hover:bg-red-600 text-xs font-bold"
+            >
+              ✕
+            </button>
 
-            {/* Camera name */}
-            <div className="font-semibold text-sm truncate">{camera.name}</div>
-
-            {/* Status */}
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className={[
-                'h-2 w-2 rounded-full',
-                isStreaming ? 'bg-brand-ok' : 'bg-slate-500',
-              ].join(' ')} />
-              <span className="text-xs text-slate-400 capitalize">
-                {isStreaming ? 'streaming' : camera.status}
-              </span>
-              {isActive && (
-                <span className="ml-auto rounded bg-brand-accent px-1.5 py-0.5 text-xs font-bold text-brand-dark">
-                  ON AIR
-                </span>
+            {/* Click area to switch scene */}
+            <button
+              onClick={() => { void handleClick(camera); }}
+              className="w-full text-left"
+            >
+              {/* Live video preview */}
+              {isStreaming ? (
+                <CameraPreview name={camera.name} active={isActive} />
+              ) : (
+                <div className="mb-2 w-full flex items-center justify-center rounded-lg bg-slate-900"
+                  style={{ aspectRatio: '16/9', minHeight: '180px' }}>
+                  <span className="text-3xl">📷</span>
+                </div>
               )}
-            </div>
-          </button>
+
+              {/* Camera name */}
+              <div className="font-semibold text-sm truncate">{camera.name}</div>
+
+              {/* Status */}
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className={[
+                  'h-2 w-2 rounded-full',
+                  isStreaming ? 'bg-brand-ok' : 'bg-slate-500',
+                ].join(' ')} />
+                <span className="text-xs text-slate-400 capitalize">
+                  {isStreaming ? 'streaming' : camera.status}
+                </span>
+                {isActive && (
+                  <span className="ml-auto rounded bg-brand-accent px-1.5 py-0.5 text-xs font-bold text-brand-dark">
+                    ON AIR
+                  </span>
+                )}
+              </div>
+            </button>
+          </div>
         );
       })}
     </div>
