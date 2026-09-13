@@ -71,10 +71,10 @@ export function App(): React.JSX.Element {
       </header>
 
       {/* Main layout */}
-      <main className="mx-auto max-w-7xl px-4 py-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <main className="mx-auto max-w-full px-4 py-5 grid grid-cols-1 gap-4 lg:grid-cols-4">
 
-        {/* Left — cameras + scenes (2/3 width on large screens) */}
-        <div className="space-y-4 lg:col-span-2">
+        {/* Left — cameras + scenes (3/4 width on large screens) */}
+        <div className="space-y-4 lg:col-span-3">
 
           {/* Camera grid */}
           <div>
