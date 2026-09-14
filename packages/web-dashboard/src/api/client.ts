@@ -112,8 +112,8 @@ export const disableCamera = (name: string): Promise<{ disabled: boolean }> =>
 export const updateCameraIp = (name: string, ip: string): Promise<CameraConfig> =>
   post<CameraConfig>('/cameras/' + name + '/ip', { ip });
 
-export const scanCameras = (): Promise<{ found: string[]; subnet: string }> =>
-  request<{ found: string[]; subnet: string }>('/cameras/scan');
+export const scanCameras = (subnet?: string): Promise<{ found: string[]; subnet: string }> =>
+  request<{ found: string[]; subnet: string }>(`/cameras/scan${subnet !== undefined ? `?subnet=${subnet}` : ''}`);
 
 export const stopBroadcast = (): Promise<{ stopped: boolean; status: string }> =>
   post('/broadcast/stop', {});

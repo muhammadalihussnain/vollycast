@@ -25,6 +25,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { networkInterfaces } from 'node:os';
 import express, { type Request, type Response } from 'express';
 
 import { EventBus, NETWORK, HTTP_STATUS } from '@vollycast/shared';
@@ -544,15 +545,53 @@ const IP_WEBCAM_PORT = 8080;
  * GET /cameras/scan
  * Returns list of IPs that have IP Webcam running on port 8080.
  */
+/**
+ * Get the auto-detected local subnet.
+ * GET /cameras/subnet
+ */
+apiApp.get('/cameras/subnet', (_req: Request, res: Response): void => {
+  const subnet = detectLocalSubnet();
+  res.json({ subnet, fullIp: `${subnet}.x` });
+});
+
 /** Number of host addresses in a /24 subnet */
 const SUBNET_HOST_COUNT = 254;
 
 /** Number of octets to keep for subnet (first 3 of IPv4) */
 const IPV4_SUBNET_OCTETS = 3;
 
-apiApp.get('/cameras/scan', (_req: Request, res: Response): void => {
-  const localIp = process.env['HOST_IP'] ?? '192.168.100.1';
-  const subnet = localIp.split('.').slice(0, IPV4_SUBNET_OCTETS).join('.');
+/**
+ * Auto-detect the laptop's WiFi IP by looking at network interfaces.
+ * Prefers non-loopback, non-Docker IPv4 addresses on common private ranges.
+ * Falls back to provided subnet query param if detection fails.
+ */
+function detectLocalSubnet(): string {
+  const nets = networkInterfaces();
+  const candidates: string[] = [];
+
+  for (const iface of Object.values(nets)) {
+    if (iface === undefined) continue;
+    for (const net of iface) {
+      // Skip loopback, IPv6, and Docker bridge interfaces
+      if (net.internal) continue;
+      if (net.family !== 'IPv4') continue;
+      if (net.address.startsWith('172.') || net.address.startsWith('127.')) continue;
+      candidates.push(net.address);
+    }
+  }
+
+  // Prefer 192.168.x.x or 10.x.x.x (common WiFi/hotspot ranges)
+  const preferred = candidates.find((ip) => ip.startsWith('192.168.') || ip.startsWith('10.'));
+  const chosen = preferred ?? candidates[0] ?? '192.168.1.1';
+  return chosen.split('.').slice(0, IPV4_SUBNET_OCTETS).join('.');
+}
+
+apiApp.get('/cameras/scan', (req: Request, res: Response): void => {
+  // Use query param subnet if provided, otherwise auto-detect
+  const querySubnet = (req.query as Record<string, string>)['subnet'];
+  const subnet = (querySubnet !== undefined && querySubnet.length > 0)
+    ? querySubnet
+    : detectLocalSubnet();
 
   const scanRange = Array.from({ length: SUBNET_HOST_COUNT }, (_, i) => `${subnet}.${String(i + 1)}`);
 
