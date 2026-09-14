@@ -109,6 +109,9 @@ apiApp.get('/cameras', (_req: Request, res: Response): void => {
  *     -H "Content-Type: application/json" \
  *     -d '{"name":"cam1","streamUrl":"rtmp://nginx-rtmp:1935/live/cam1"}'
  */
+/** Blocklist of camera names manually disconnected — nginx on_publish will not re-register these */
+const disconnectedCameras = new Set<string>();
+
 apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
   const body = req.body as Record<string, string>;
   const name = body['name'];
@@ -125,6 +128,9 @@ apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
     try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
   }
 
+  // Clear from disconnect blocklist — user is explicitly re-adding this camera
+  disconnectedCameras.delete(name);
+
   try {
     const camera = cameraService.connect({ name, streamUrl });
     res.status(HTTP_STATUS.CREATED).json(camera);
@@ -135,23 +141,33 @@ apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
 
 /**
  * Manually disconnect a camera by name.
+ * Removes ALL cameras with that name and blocks re-registration.
  */
 apiApp.post('/cameras/disconnect', (req: Request, res: Response): void => {
   const body = req.body as Record<string, string>;
   const name = body['name'];
-  const camera = cameraService.getCameras().find((c: { name: string }) => c.name === name);
 
-  if (camera === undefined) {
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: `No camera named '${name ?? ''}'` });
+  if (name === undefined || name.length === 0) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'name is required' });
     return;
   }
 
-  try {
-    cameraService.disconnect(camera.id);
-    res.status(HTTP_STATUS.OK).json({ disconnected: camera.id });
-  } catch (err) {
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  // Remove ALL cameras with this name
+  const allWithName = cameraService.getCameras().filter((c: { name: string }) => c.name === name);
+
+  if (allWithName.length === 0) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: `No camera named '${name}'` });
+    return;
   }
+
+  for (const camera of allWithName) {
+    try { cameraService.disconnect(camera.id); } catch { /* ignore */ }
+  }
+
+  // Block this name from being re-registered by nginx
+  disconnectedCameras.add(name);
+
+  res.status(HTTP_STATUS.OK).json({ disconnected: name, count: allWithName.length });
 });
 
 /**
@@ -167,6 +183,13 @@ apiApp.post('/rtmp/on_publish', (req: Request, res: Response): void => {
   // These use UUID stream keys (e.g. af53043b-ec79-45c6-b5c8-3e50b7b91a29)
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidPattern.test(streamKey)) {
+    res.status(HTTP_STATUS.OK).send('OK');
+    return;
+  }
+
+  // Do not re-register cameras that were manually disconnected
+  if (disconnectedCameras.has(streamKey)) {
+    logger.info({ streamKey }, 'Camera is in disconnect blocklist — skipping auto-register');
     res.status(HTTP_STATUS.OK).send('OK');
     return;
   }

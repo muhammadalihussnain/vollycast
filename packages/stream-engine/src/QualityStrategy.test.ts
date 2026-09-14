@@ -75,8 +75,10 @@ describe('QualityStrategy', () => {
       const strategy = createQualityStrategy('medium');
       const args = buildFfmpegArgs(INPUT, OUTPUT, strategy);
       expect(args[0]).toBe('-re');
-      expect(args[1]).toBe('-i');
-      expect(args[2]).toBe(INPUT);
+      // -fflags nobuffer and -flags low_delay come before -i for low latency
+      const iIndex = args.indexOf('-i');
+      expect(iIndex).toBeGreaterThan(0);
+      expect(args[iIndex + 1]).toBe(INPUT);
     });
 
     it('ends with the output URL', () => {
