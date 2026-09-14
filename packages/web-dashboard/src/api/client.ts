@@ -5,6 +5,7 @@
 
 import type {
   Camera,
+  CameraConfig,
   Scene,
   Match,
   BroadcastState,
@@ -98,6 +99,18 @@ export const startBroadcast = (
   inputUrl: string,
 ): Promise<{ started: boolean; platform: PlatformType; status: string }> =>
   post('/broadcast/start', { platform, streamKey, inputUrl });
+
+export const getCameraConfig = (): Promise<CameraConfig[]> =>
+  request<CameraConfig[]>('/cameras/config');
+
+export const enableCamera = (name: string, ip?: string): Promise<{ enabled: boolean }> =>
+  post('/cameras/' + name + '/enable', ip !== undefined && ip.length > 0 ? { ip } : {});
+
+export const disableCamera = (name: string): Promise<{ disabled: boolean }> =>
+  post('/cameras/' + name + '/disable', {});
+
+export const updateCameraIp = (name: string, ip: string): Promise<CameraConfig> =>
+  post<CameraConfig>('/cameras/' + name + '/ip', { ip });
 
 export const scanCameras = (): Promise<{ found: string[]; subnet: string }> =>
   request<{ found: string[]; subnet: string }>('/cameras/scan');

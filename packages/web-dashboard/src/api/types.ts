@@ -14,6 +14,13 @@ export interface Camera {
   connectedAt?: string;
 }
 
+export interface CameraConfig {
+  name: string;
+  ip: string;
+  label: string;
+  enabled: boolean;
+}
+
 export interface Scene {
   id: string;
   name: string;

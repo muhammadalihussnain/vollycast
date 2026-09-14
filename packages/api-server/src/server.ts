@@ -22,6 +22,9 @@
  */
 
 import { createServer as createHttpServer } from 'node:http';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express, { type Request, type Response } from 'express';
 
 import { EventBus, NETWORK, HTTP_STATUS } from '@vollycast/shared';
@@ -81,6 +84,38 @@ const broadcastManager = new BroadcastManager(
 
 // ── Module 5: Scene Switcher ──────────────────────────────────────────────────
 const sceneSwitcher = new SceneSwitcher({ eventBus: bus });
+
+// ── Camera config (cameras.json) ─────────────────────────────────────────────
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CAMERAS_CONFIG_PATH = join(__dirname, '../../../cameras.json');
+
+interface CameraConfig {
+  name: string;
+  ip: string;
+  label: string;
+  enabled: boolean;
+}
+
+/** Load cameras.json */
+function loadCameraConfig(): CameraConfig[] {
+  try {
+    if (!existsSync(CAMERAS_CONFIG_PATH)) return [];
+    return JSON.parse(readFileSync(CAMERAS_CONFIG_PATH, 'utf8')) as CameraConfig[];
+  } catch {
+    return [];
+  }
+}
+
+/** JSON indent spaces */
+const JSON_INDENT = 2;
+
+/** Save cameras.json */
+function saveCameraConfig(config: CameraConfig[]): void {
+  writeFileSync(CAMERAS_CONFIG_PATH, JSON.stringify(config, null, JSON_INDENT));
+}
+
+const cameraConfig: CameraConfig[] = loadCameraConfig();
 
 // ── API server — RTMP callbacks + camera management ─────────────────────────
 const apiApp = express();
@@ -397,6 +432,105 @@ apiApp.post('/scenes/switch', (req: Request, res: Response): void => {
   });
 });
 
+// ── Camera config endpoints ───────────────────────────────────────────────────
+
+/**
+ * Get the full camera configuration (6 fixed slots).
+ * GET /cameras/config
+ */
+apiApp.get('/cameras/config', (_req: Request, res: Response): void => {
+  res.json(cameraConfig);
+});
+
+/**
+ * Update camera IP in config.
+ * POST /cameras/:name/ip
+ * Body: { ip }
+ */
+apiApp.post('/cameras/:name/ip', (req: Request, res: Response): void => {
+  const { name } = req.params as { name: string };
+  const { ip } = req.body as { ip: string };
+
+  const cam = cameraConfig.find((c) => c.name === name);
+  if (cam === undefined) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: `Camera ${name} not found in config` });
+    return;
+  }
+
+  cam.ip = ip;
+  saveCameraConfig(cameraConfig);
+  res.json(cam);
+});
+
+/**
+ * Enable a camera (start streaming).
+ * POST /cameras/:name/enable
+ * Body: { ip? } — optional, updates IP if provided
+ */
+apiApp.post('/cameras/:name/enable', (req: Request, res: Response): void => {
+  const { name } = req.params as { name: string };
+  const body = req.body as Record<string, string>;
+
+  const cam = cameraConfig.find((c) => c.name === name);
+  if (cam === undefined) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: `Camera ${name} not found in config` });
+    return;
+  }
+
+  if (body['ip'] !== undefined && body['ip'].length > 0) {
+    cam.ip = body['ip'];
+  }
+
+  if (cam.ip.length === 0) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: `No IP configured for ${name}. Provide ip in body.` });
+    return;
+  }
+
+  cam.enabled = true;
+  saveCameraConfig(cameraConfig);
+
+  // Remove blocklist entry so camera can be registered
+  disconnectedCameras.delete(name);
+
+  // Remove existing to avoid duplicates
+  const existing = cameraService.getCameras().find((c: { name: string }) => c.name === name);
+  if (existing !== undefined) {
+    try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
+  }
+
+  const streamUrl = `rtmp://nginx-rtmp:1935/live/${name}`;
+  const camera = cameraService.connect({ name, streamUrl });
+  res.json({ enabled: true, camera, ip: cam.ip });
+});
+
+/**
+ * Disable a camera (stop streaming, keep slot).
+ * POST /cameras/:name/disable
+ */
+apiApp.post('/cameras/:name/disable', (req: Request, res: Response): void => {
+  const { name } = req.params as { name: string };
+
+  const cam = cameraConfig.find((c) => c.name === name);
+  if (cam === undefined) {
+    res.status(HTTP_STATUS.NOT_FOUND).json({ error: `Camera ${name} not found in config` });
+    return;
+  }
+
+  cam.enabled = false;
+  saveCameraConfig(cameraConfig);
+
+  // Add to blocklist
+  disconnectedCameras.add(name);
+
+  // Disconnect all cameras with this name
+  const allWithName = cameraService.getCameras().filter((c: { name: string }) => c.name === name);
+  for (const camera of allWithName) {
+    try { cameraService.disconnect(camera.id); } catch { /* ignore */ }
+  }
+
+  res.json({ disabled: true, name });
+});
+
 // ── Camera scan endpoint ──────────────────────────────────────────────────────
 
 /** Scan timeout per IP in ms */
@@ -455,6 +589,19 @@ async function start(): Promise<void> {
   streamEngine.start();
   recordingManager.start();
 
+  // Auto-register enabled cameras from cameras.json
+  for (const cam of cameraConfig) {
+    if (cam.enabled && cam.ip.length > 0) {
+      const streamUrl = `rtmp://nginx-rtmp:1935/live/${cam.name}`;
+      try {
+        cameraService.connect({ name: cam.name, streamUrl });
+        logger.info({ name: cam.name, ip: cam.ip }, 'Auto-registered camera from config');
+      } catch {
+        logger.warn({ name: cam.name }, 'Failed to auto-register camera');
+      }
+    }
+  }
+
   // Start overlay server
   overlayServer.listen(OVERLAY_PORT, () => {
     logger.info({ port: OVERLAY_PORT }, 'Scoreboard overlay started');
@@ -485,3 +632,4 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT',  shutdown);
 
 void start();
+
