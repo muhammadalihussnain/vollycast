@@ -7,7 +7,7 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
 import Hls from 'hls.js';
 import type { Camera, CameraConfig, Scene } from '../api/types.js';
-import { registerScene, switchScene, enableCamera, disableCamera } from '../api/client.js';
+import { switchScene, enableCamera, disableCamera } from '../api/client.js';
 
 interface Props {
   cameras: Camera[];
