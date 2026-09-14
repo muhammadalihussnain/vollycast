@@ -39,6 +39,7 @@ services:
       - RECORDINGS_PATH=/recordings
       - OVERLAY_PORT=3001
       - API_PORT=4000
+      - HOST_IP=192.168.100.1
     volumes:
       - recordings-data:/recordings
       - hls-data:/tmp/hls

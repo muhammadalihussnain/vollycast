@@ -17,6 +17,7 @@ import { ScenePanel } from './components/ScenePanel.js';
 import { ScorePanel } from './components/ScorePanel.js';
 import { BroadcastPanel } from './components/BroadcastPanel.js';
 import { HealthPanel } from './components/HealthPanel.js';
+import { CameraDiscovery } from './components/CameraDiscovery.js';
 
 export function App(): React.JSX.Element {
   const [match, setMatch] = useState<Match | null>(null);
@@ -75,6 +76,9 @@ export function App(): React.JSX.Element {
 
         {/* Left — cameras + scenes (3/4 width on large screens) */}
         <div className="space-y-4 lg:col-span-3">
+
+          {/* Camera discovery */}
+          <CameraDiscovery onConnect={refreshCameras} />
 
           {/* Camera grid */}
           <div>

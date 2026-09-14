@@ -99,5 +99,8 @@ export const startBroadcast = (
 ): Promise<{ started: boolean; platform: PlatformType; status: string }> =>
   post('/broadcast/start', { platform, streamKey, inputUrl });
 
+export const scanCameras = (): Promise<{ found: string[]; subnet: string }> =>
+  request<{ found: string[]; subnet: string }>('/cameras/scan');
+
 export const stopBroadcast = (): Promise<{ stopped: boolean; status: string }> =>
   post('/broadcast/stop', {});

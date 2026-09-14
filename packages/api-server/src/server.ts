@@ -397,6 +397,57 @@ apiApp.post('/scenes/switch', (req: Request, res: Response): void => {
   });
 });
 
+// ── Camera scan endpoint ──────────────────────────────────────────────────────
+
+/** Scan timeout per IP in ms */
+const SCAN_TIMEOUT_MS = 800;
+
+/** IP Webcam port */
+const IP_WEBCAM_PORT = 8080;
+
+/**
+ * Scan local network for IP Webcam devices.
+ * GET /cameras/scan
+ * Returns list of IPs that have IP Webcam running on port 8080.
+ */
+/** Number of host addresses in a /24 subnet */
+const SUBNET_HOST_COUNT = 254;
+
+/** Number of octets to keep for subnet (first 3 of IPv4) */
+const IPV4_SUBNET_OCTETS = 3;
+
+apiApp.get('/cameras/scan', (_req: Request, res: Response): void => {
+  const localIp = process.env['HOST_IP'] ?? '192.168.100.1';
+  const subnet = localIp.split('.').slice(0, IPV4_SUBNET_OCTETS).join('.');
+
+  const scanRange = Array.from({ length: SUBNET_HOST_COUNT }, (_, i) => `${subnet}.${String(i + 1)}`);
+
+  logger.info({ subnet }, 'Scanning network for IP Webcam devices');
+
+  const checks = scanRange.map(async (ip): Promise<string | null> => {
+    return new Promise<string | null>((resolve) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => { controller.abort(); }, SCAN_TIMEOUT_MS);
+
+      fetch(`http://${ip}:${String(IP_WEBCAM_PORT)}/photo.jpg`, { signal: controller.signal, method: 'HEAD' })
+        .then((r) => {
+          clearTimeout(timer);
+          resolve(r.ok ? ip : null);
+        })
+        .catch(() => {
+          clearTimeout(timer);
+          resolve(null);
+        });
+    });
+  });
+
+  void Promise.all(checks).then((results) => {
+    const found = results.filter((ip): ip is string => ip !== null);
+    logger.info({ found }, 'Network scan complete');
+    res.json({ found, subnet });
+  });
+});
+
 // ── Start everything ─────────────────────────────────────────────────────────
 async function start(): Promise<void> {
   // Start modules
