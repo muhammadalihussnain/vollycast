@@ -235,6 +235,12 @@ apiApp.post('/rtmp/on_publish', (req: Request, res: Response): void => {
   logger.info({ streamKey }, 'Phone started streaming');
 
   try {
+    // Allow cameras that are enabled in config
+    const configCam = cameraConfig.find((c) => c.name === streamKey);
+    if (configCam !== undefined && configCam.enabled) {
+      disconnectedCameras.delete(streamKey);
+    }
+
     // If camera with this name already exists — skip, do not register again
     const existing = cameraService.getCameras().find((c: { name: string }) => c.name === streamKey);
     if (existing !== undefined) {
@@ -597,18 +603,20 @@ function detectLocalSubnet(): string {
   const nets = networkInterfaces();
   const candidates: string[] = [];
 
-  for (const iface of Object.values(nets)) {
+  for (const [ifaceName, iface] of Object.entries(nets)) {
     if (iface === undefined) continue;
+    // Skip Docker, virtual, and loopback interfaces by name
+    if (ifaceName.startsWith('docker') || ifaceName.startsWith('br-') ||
+        ifaceName.startsWith('veth') || ifaceName === 'lo') continue;
     for (const net of iface) {
-      // Skip loopback, IPv6, and Docker bridge interfaces
       if (net.internal) continue;
       if (net.family !== 'IPv4') continue;
+      // Skip Docker/virtual ranges
       if (net.address.startsWith('172.') || net.address.startsWith('127.')) continue;
       candidates.push(net.address);
     }
   }
 
-  // Prefer 192.168.x.x or 10.x.x.x (common WiFi/hotspot ranges)
   const preferred = candidates.find((ip) => ip.startsWith('192.168.') || ip.startsWith('10.'));
   const chosen = preferred ?? candidates[0] ?? '192.168.1.1';
   return chosen.split('.').slice(0, IPV4_SUBNET_OCTETS).join('.');
@@ -657,19 +665,9 @@ async function start(): Promise<void> {
   recordingManager.start();
 
   // Auto-register enabled cameras from cameras.json
-  // FFmpeg must run on the host machine — auto-register only, no FFmpeg start
-  for (const cam of cameraConfig) {
-    if (cam.enabled && cam.ip.length > 0) {
-      const streamUrl = `rtmp://nginx-rtmp:1935/live/${cam.name}`;
-      try {
-        disconnectedCameras.delete(cam.name);
-        cameraService.connect({ name: cam.name, streamUrl });
-        logger.info({ name: cam.name, ip: cam.ip }, 'Auto-registered camera from config');
-      } catch {
-        logger.warn({ name: cam.name }, 'Failed to auto-register camera');
-      }
-    }
-  }
+  // Only registers in-memory — actual streaming requires FFmpeg running on the host
+  // FFmpeg pushes to nginx → nginx calls /rtmp/on_publish → camera registers automatically
+  logger.info({ enabledCount: cameraConfig.filter((c) => c.enabled).length }, 'Camera config loaded — waiting for streams');
 
   // Start overlay server
   overlayServer.listen(OVERLAY_PORT, () => {
