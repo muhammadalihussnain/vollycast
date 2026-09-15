@@ -26,6 +26,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
+import { spawn } from 'node:child_process';
 import express, { type Request, type Response } from 'express';
 
 import { EventBus, NETWORK, HTTP_STATUS } from '@vollycast/shared';
@@ -464,6 +465,67 @@ apiApp.post('/cameras/:name/ip', (req: Request, res: Response): void => {
   res.json(cam);
 });
 
+/** Track FFmpeg processes per camera name */
+const cameraFfmpegProcesses = new Map<string, ReturnType<typeof spawn>>();
+
+/** Delay before restarting camera FFmpeg after crash */
+const CAMERA_FFMPEG_RESTART_DELAY_MS = 3000;
+
+/** FFmpeg video quality for IP Webcam input */
+const IP_WEBCAM_PORT_NUM = 8080;
+
+/**
+ * Start FFmpeg for a camera — reads from IP Webcam, pushes to nginx RTMP.
+ * Called when camera is enabled.
+ */
+function startCameraFfmpeg(name: string, ip: string): void {
+  // Kill existing process if any
+  stopCameraFfmpeg(name);
+
+  const inputUrl = `http://${ip}:${String(IP_WEBCAM_PORT_NUM)}/video`;
+  const outputUrl = `rtmp://localhost:${String(RTMP_PORT)}/live/${name}`;
+
+  logger.info({ name, ip, inputUrl }, 'Starting FFmpeg for camera');
+
+  const proc = spawn('ffmpeg', [
+    '-i', inputUrl,
+    '-vcodec', 'libx264',
+    '-preset', 'ultrafast',
+    '-tune', 'zerolatency',
+    '-vf', 'scale=640:480',
+    '-b:v', '800k',
+    '-f', 'flv',
+    outputUrl,
+  ], { stdio: 'ignore' });
+
+  proc.on('exit', (code: number | null) => {
+    logger.warn({ name, code }, 'Camera FFmpeg exited');
+    cameraFfmpegProcesses.delete(name);
+    // Auto-restart if still enabled
+    const cam = cameraConfig.find((c) => c.name === name);
+    if (cam?.enabled === true) {
+      logger.info({ name }, 'Auto-restarting FFmpeg in 3s');
+      setTimeout(() => {
+        if (cam.enabled) startCameraFfmpeg(name, cam.ip);
+      }, CAMERA_FFMPEG_RESTART_DELAY_MS);
+    }
+  });
+
+  cameraFfmpegProcesses.set(name, proc);
+}
+
+/**
+ * Stop FFmpeg for a camera.
+ */
+function stopCameraFfmpeg(name: string): void {
+  const proc = cameraFfmpegProcesses.get(name);
+  if (proc !== undefined) {
+    proc.kill('SIGTERM');
+    cameraFfmpegProcesses.delete(name);
+    logger.info({ name }, 'Stopped FFmpeg for camera');
+  }
+}
+
 /**
  * Enable a camera (start streaming).
  * POST /cameras/:name/enable
@@ -500,6 +562,9 @@ apiApp.post('/cameras/:name/enable', (req: Request, res: Response): void => {
     try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
   }
 
+  // Start FFmpeg to push phone camera to nginx
+  startCameraFfmpeg(name, cam.ip);
+
   const streamUrl = `rtmp://nginx-rtmp:1935/live/${name}`;
   const camera = cameraService.connect({ name, streamUrl });
   res.json({ enabled: true, camera, ip: cam.ip });
@@ -523,6 +588,9 @@ apiApp.post('/cameras/:name/disable', (req: Request, res: Response): void => {
 
   // Add to blocklist
   disconnectedCameras.add(name);
+
+  // Stop FFmpeg for this camera
+  stopCameraFfmpeg(name);
 
   // Disconnect all cameras with this name
   const allWithName = cameraService.getCameras().filter((c: { name: string }) => c.name === name);
@@ -635,9 +703,11 @@ async function start(): Promise<void> {
       const streamUrl = `rtmp://nginx-rtmp:1935/live/${cam.name}`;
       try {
         cameraService.connect({ name: cam.name, streamUrl });
-        logger.info({ name: cam.name, ip: cam.ip }, 'Auto-registered camera from config');
+        // Start FFmpeg to push from phone to nginx
+        startCameraFfmpeg(cam.name, cam.ip);
+        logger.info({ name: cam.name, ip: cam.ip }, 'Auto-started camera from config');
       } catch {
-        logger.warn({ name: cam.name }, 'Failed to auto-register camera');
+        logger.warn({ name: cam.name }, 'Failed to auto-start camera');
       }
     }
   }
@@ -658,6 +728,10 @@ async function start(): Promise<void> {
 // ── Graceful shutdown ────────────────────────────────────────────────────────
 function shutdown(): void {
   logger.info({}, 'Shutting down VollyCast...');
+  // Stop all camera FFmpeg processes
+  for (const [name] of cameraFfmpegProcesses) {
+    stopCameraFfmpeg(name);
+  }
   broadcastManager.stop();
   sceneSwitcher.stop();
   cameraService.stop();
