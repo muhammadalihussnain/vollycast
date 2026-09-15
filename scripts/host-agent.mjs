@@ -203,6 +203,14 @@ const server = createServer(async (req, res) => {
   json(res, { error: 'Not found' }, 404);
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${AGENT_PORT} already in use. Run: lsof -ti:${AGENT_PORT} | xargs kill -9`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(AGENT_PORT, () => {
   const ip = detectLaptopIp();
   const subnet = getSubnet(ip);
