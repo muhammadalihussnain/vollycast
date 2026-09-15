@@ -59,6 +59,8 @@ services:
     container_name: vollycast-dashboard
     ports:
       - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - vollycast-api
     restart: unless-stopped
