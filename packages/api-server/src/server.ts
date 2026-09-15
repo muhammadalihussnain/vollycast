@@ -89,7 +89,8 @@ const sceneSwitcher = new SceneSwitcher({ eventBus: bus });
 // ── Camera config (cameras.json) ─────────────────────────────────────────────
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CAMERAS_CONFIG_PATH = join(__dirname, '../../../cameras.json');
+// cameras.json is at project root — 3 levels up from packages/api-server/dist/
+const CAMERAS_CONFIG_PATH = process.env['CAMERAS_CONFIG_PATH'] ?? join(__dirname, '../../../cameras.json');
 
 interface CameraConfig {
   name: string;

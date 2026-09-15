@@ -40,9 +40,11 @@ services:
       - OVERLAY_PORT=3001
       - API_PORT=4000
       - HOST_IP=192.168.100.1
+      - CAMERAS_CONFIG_PATH=/app/cameras.json
     volumes:
       - recordings-data:/recordings
       - hls-data:/tmp/hls
+      - ./cameras.json:/app/cameras.json
     depends_on:
       - nginx-rtmp
     restart: unless-stopped

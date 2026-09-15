@@ -7,6 +7,7 @@ RUN npm install -g pnpm@9.1.0
 
 # Copy workspace config and all packages
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY cameras.json ./cameras.json
 COPY shared/                          ./shared/
 COPY packages/camera-ingestion/       ./packages/camera-ingestion/
 COPY packages/stream-engine/          ./packages/stream-engine/
@@ -40,6 +41,7 @@ WORKDIR /app
 RUN npm install -g pnpm@9.1.0
 
 COPY package.json pnpm-workspace.yaml ./
+COPY --from=builder /app/cameras.json ./cameras.json
 
 # shared
 COPY --from=builder /app/shared/dist/        ./shared/dist/
