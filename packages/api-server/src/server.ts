@@ -32,7 +32,6 @@ import express, { type Request, type Response } from 'express';
 import { EventBus, NETWORK, HTTP_STATUS } from '@vollycast/shared';
 import type { PlatformType, TransitionType } from '@vollycast/shared';
 import { CameraIngestionService } from '@vollycast/camera-ingestion';
-import { StreamEngine }           from '@vollycast/stream-engine';
 import { MatchService, OverlaySocket, createApp as createOverlayApp } from '@vollycast/scoreboard-overlay';
 import { RecordingManager }       from '@vollycast/recording-manager';
 import { BroadcastManager }       from '@vollycast/broadcast-manager';
@@ -57,12 +56,14 @@ const bus = EventBus.getInstance();
 const cameraService = new CameraIngestionService({ eventBus: bus });
 
 // ── Module 2: Stream Engine ──────────────────────────────────────────────────
-const streamEngine = new StreamEngine({
-  eventBus:  bus,
-  rtmpHost:  RTMP_HOST,
-  rtmpPort:  RTMP_PORT,
-  defaultProfile: 'medium',
-});
+// Stream Engine is disabled — cameras are managed by external FFmpeg via host agent
+// const streamEngine = new StreamEngine({ ... });
+// We keep a minimal stub for the health endpoint
+const streamEngine = {
+  start: (): void => { logger.info({}, 'Stream engine (stub) started'); },
+  stop: (): void => { logger.info({}, 'Stream engine (stub) stopped'); },
+  activeStreamCount: (): number => 0,
+};
 
 // ── Module 3: Scoreboard Overlay ─────────────────────────────────────────────
 const matchService   = new MatchService(bus);

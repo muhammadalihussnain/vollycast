@@ -1,8 +1,38 @@
 [
-  { "name": "cam1", "ip": "192.168.100.87",  "label": "Side Left",    "enabled": true  },
-  { "name": "cam2", "ip": "",                "label": "Side Right",   "enabled": false },
-  { "name": "cam3", "ip": "",                "label": "Behind Net",   "enabled": false },
-  { "name": "cam4", "ip": "",                "label": "Elevated Rear","enabled": false },
-  { "name": "cam5", "ip": "",                "label": "Close Left",   "enabled": false },
-  { "name": "cam6", "ip": "",                "label": "Close Right",  "enabled": false }
+  {
+    "name": "cam1",
+    "ip": "192.168.100.87",
+    "label": "Side Left",
+    "enabled": true
+  },
+  {
+    "name": "cam2",
+    "ip": "",
+    "label": "Side Right",
+    "enabled": false
+  },
+  {
+    "name": "cam3",
+    "ip": "",
+    "label": "Behind Net",
+    "enabled": false
+  },
+  {
+    "name": "cam4",
+    "ip": "",
+    "label": "Elevated Rear",
+    "enabled": false
+  },
+  {
+    "name": "cam5",
+    "ip": "",
+    "label": "Close Left",
+    "enabled": false
+  },
+  {
+    "name": "cam6",
+    "ip": "",
+    "label": "Close Right",
+    "enabled": false
+  }
 ]
