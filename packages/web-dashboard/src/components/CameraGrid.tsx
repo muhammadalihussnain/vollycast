@@ -100,6 +100,7 @@ function CameraSlot({
   const [loading, setLoading] = useState(false);
   const [editingIp, setEditingIp] = useState(false);
   const [ipInput, setIpInput] = useState(config.ip);
+  const [ffmpegCmd, setFfmpegCmd] = useState<string | null>(null);
 
   const isStreaming = camera !== undefined && (camera.status === 'active' || camera.status === 'error');
 
@@ -108,13 +109,17 @@ function CameraSlot({
     try {
       if (config.enabled) {
         await disableCamera(config.name);
+        setFfmpegCmd(null);
       } else {
         if (config.ip.length === 0) {
           setEditingIp(true);
           setLoading(false);
           return;
         }
-        await enableCamera(config.name, config.ip);
+        const result = await enableCamera(config.name, config.ip) as { ffmpegCommand?: string };
+        if (result.ffmpegCommand !== undefined) {
+          setFfmpegCmd(result.ffmpegCommand);
+        }
       }
       onConfigChange();
     } catch (err) {
@@ -214,6 +219,20 @@ function CameraSlot({
           </span>
         )}
       </div>
+
+      {/* FFmpeg command — shown after connecting */}
+      {ffmpegCmd !== null && !isStreaming && (
+        <div className="mt-2 rounded bg-slate-900 p-2">
+          <div className="text-xs text-yellow-400 mb-1">▶ Run this command on your laptop:</div>
+          <div className="font-mono text-xs text-slate-300 break-all select-all">{ffmpegCmd}</div>
+          <button
+            onClick={() => { void navigator.clipboard.writeText(ffmpegCmd); }}
+            className="mt-1 text-xs text-brand-accent hover:underline"
+          >
+            Copy command
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,7 +26,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
-import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import express, { type Request, type Response } from 'express';
 
 import { EventBus, NETWORK, HTTP_STATUS } from '@vollycast/shared';
@@ -466,53 +466,10 @@ apiApp.post('/cameras/:name/ip', (req: Request, res: Response): void => {
 });
 
 /** Track FFmpeg processes per camera name */
-const cameraFfmpegProcesses = new Map<string, ReturnType<typeof spawn>>();
+const cameraFfmpegProcesses = new Map<string, ChildProcess>();
 
-/** Delay before restarting camera FFmpeg after crash */
-const CAMERA_FFMPEG_RESTART_DELAY_MS = 3000;
-
-/** FFmpeg video quality for IP Webcam input */
+/** Port IP Webcam serves video on */
 const IP_WEBCAM_PORT_NUM = 8080;
-
-/**
- * Start FFmpeg for a camera — reads from IP Webcam, pushes to nginx RTMP.
- * Called when camera is enabled.
- */
-function startCameraFfmpeg(name: string, ip: string): void {
-  // Kill existing process if any
-  stopCameraFfmpeg(name);
-
-  const inputUrl = `http://${ip}:${String(IP_WEBCAM_PORT_NUM)}/video`;
-  const outputUrl = `rtmp://localhost:${String(RTMP_PORT)}/live/${name}`;
-
-  logger.info({ name, ip, inputUrl }, 'Starting FFmpeg for camera');
-
-  const proc = spawn('ffmpeg', [
-    '-i', inputUrl,
-    '-vcodec', 'libx264',
-    '-preset', 'ultrafast',
-    '-tune', 'zerolatency',
-    '-vf', 'scale=640:480',
-    '-b:v', '800k',
-    '-f', 'flv',
-    outputUrl,
-  ], { stdio: 'ignore' });
-
-  proc.on('exit', (code: number | null) => {
-    logger.warn({ name, code }, 'Camera FFmpeg exited');
-    cameraFfmpegProcesses.delete(name);
-    // Auto-restart if still enabled
-    const cam = cameraConfig.find((c) => c.name === name);
-    if (cam?.enabled === true) {
-      logger.info({ name }, 'Auto-restarting FFmpeg in 3s');
-      setTimeout(() => {
-        if (cam.enabled) startCameraFfmpeg(name, cam.ip);
-      }, CAMERA_FFMPEG_RESTART_DELAY_MS);
-    }
-  });
-
-  cameraFfmpegProcesses.set(name, proc);
-}
 
 /**
  * Stop FFmpeg for a camera.
@@ -562,12 +519,14 @@ apiApp.post('/cameras/:name/enable', (req: Request, res: Response): void => {
     try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
   }
 
-  // Start FFmpeg to push phone camera to nginx
-  startCameraFfmpeg(name, cam.ip);
+  // NOTE: FFmpeg must run on the HOST machine (not inside Docker) because it needs
+  // to reach the phone IP on the local WiFi network.
+  // The dashboard shows the command to run.
+  const ffmpegCommand = `ffmpeg -i http://${cam.ip}:${String(IP_WEBCAM_PORT_NUM)}/video -vcodec libx264 -preset ultrafast -tune zerolatency -vf scale=640:480 -b:v 800k -f flv rtmp://localhost:1935/live/${name}`;
 
   const streamUrl = `rtmp://nginx-rtmp:1935/live/${name}`;
   const camera = cameraService.connect({ name, streamUrl });
-  res.json({ enabled: true, camera, ip: cam.ip });
+  res.json({ enabled: true, camera, ip: cam.ip, ffmpegCommand });
 });
 
 /**
@@ -698,16 +657,16 @@ async function start(): Promise<void> {
   recordingManager.start();
 
   // Auto-register enabled cameras from cameras.json
+  // FFmpeg must run on the host machine — auto-register only, no FFmpeg start
   for (const cam of cameraConfig) {
     if (cam.enabled && cam.ip.length > 0) {
       const streamUrl = `rtmp://nginx-rtmp:1935/live/${cam.name}`;
       try {
+        disconnectedCameras.delete(cam.name);
         cameraService.connect({ name: cam.name, streamUrl });
-        // Start FFmpeg to push from phone to nginx
-        startCameraFfmpeg(cam.name, cam.ip);
-        logger.info({ name: cam.name, ip: cam.ip }, 'Auto-started camera from config');
+        logger.info({ name: cam.name, ip: cam.ip }, 'Auto-registered camera from config');
       } catch {
-        logger.warn({ name: cam.name }, 'Failed to auto-start camera');
+        logger.warn({ name: cam.name }, 'Failed to auto-register camera');
       }
     }
   }
