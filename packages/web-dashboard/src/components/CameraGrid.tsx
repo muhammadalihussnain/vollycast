@@ -18,41 +18,73 @@ interface Props {
   onConfigChange: () => void;
 }
 
-/** Live video preview using hls.js */
+/** Live video preview using hls.js — auto-retries until stream is available */
 function CameraPreview({ name, active }: { name: string; active: boolean }): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hlsUrl = `/hls/${name}.m3u8`;
 
-  useEffect(() => {
+  /** Retry interval when stream is not yet available */
+  const RETRY_INTERVAL_MS = 1500;
+
+  const startHls = useCallback((): void => {
     const video = videoRef.current;
     if (video === null) return;
+
+    // Destroy existing instance
+    if (hlsRef.current !== null) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
 
     if (Hls.isSupported()) {
       const hls = new Hls({
         lowLatencyMode: true,
         backBufferLength: 0,
-        maxBufferLength: 4,
-        maxMaxBufferLength: 8,
-        liveSyncDurationCount: 2,
-        liveMaxLatencyDurationCount: 4,
+        maxBufferLength: 2,
+        maxMaxBufferLength: 4,
+        liveSyncDurationCount: 1,
+        liveMaxLatencyDurationCount: 3,
+        liveDurationInfinity: true,
+        manifestLoadingTimeOut: 2000,
+        manifestLoadingMaxRetry: 0,
       });
       hlsRef.current = hls;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
+
+      // If manifest fails to load — stream not ready yet, retry
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          hls.destroy();
+          hlsRef.current = null;
+          // Retry after delay
+          retryTimerRef.current = setTimeout((): void => { startHls(); }, RETRY_INTERVAL_MS);
+        }
+      });
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         void video.play().catch(() => undefined);
       });
+
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
     } else if (video.canPlayType('application/vnd.apple.mpegurl') !== '') {
       video.src = hlsUrl;
       void video.play().catch(() => undefined);
     }
+  }, [hlsUrl]);
 
+  useEffect(() => {
+    startHls();
     return (): void => {
+      if (retryTimerRef.current !== null) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [hlsUrl]);
+  }, [startHls]);
 
   return (
     <div className="relative w-full overflow-hidden rounded-lg bg-slate-900"

@@ -93,12 +93,17 @@ function startFfmpeg(camName, phoneIp) {
   console.log(`[ffmpeg] Starting ${camName} from ${phoneIp}`);
 
   const proc = spawn('ffmpeg', [
+    '-fflags', 'nobuffer',
+    '-flags', 'low_delay',
     '-i', input,
     '-vcodec', 'libx264',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
     '-vf', 'scale=640:480',
     '-b:v', '800k',
+    '-g', '15',
+    '-keyint_min', '15',
+    '-sc_threshold', '0',
     '-f', 'flv',
     output,
   ], { stdio: 'ignore' });
