@@ -182,3 +182,15 @@ docker compose down
 **Video black in browser but Streaming shown**
 → Run: `curl -s http://localhost:3000/hls/cam1.m3u8 | head -3`
 → Must show `#EXTM3U`. If 404 — FFmpeg stopped, restart it.
+
+
+## docker compose down
+## lsof -ti:4001 | xargs kill -9 2>/dev/null; true
+## docker compose build
+
+2. Start Docker
+** cd /home/muhammad/Documents/volly-ball **
+docker compose up -d
+
+3. Start host agent
+## node scripts/host-agent.mjs

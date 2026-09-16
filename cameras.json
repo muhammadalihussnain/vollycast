@@ -3,7 +3,7 @@
     "name": "cam1",
     "ip": "192.168.100.87",
     "label": "Side Left",
-    "enabled": true
+    "enabled": false
   },
   {
     "name": "cam2",
