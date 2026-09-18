@@ -32,6 +32,16 @@ export class CameraRegistry {
   }
 
   /**
+   * Update fields of an existing camera.
+   * Throws if the camera is not registered.
+   */
+  public update(id: CameraId, updates: Partial<Omit<Camera, 'id'>>): void {
+    const camera = this.getOrThrow(id);
+    this.cameras.set(id, { ...camera, ...updates });
+  }
+
+
+  /**
    * Remove a camera from the registry.
    */
   public unregister(id: CameraId): void {

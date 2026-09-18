@@ -1,9 +1,9 @@
 [
   {
     "name": "cam1",
-    "ip": "192.168.100.87",
+    "ip": "192.168.0.196",
     "label": "Side Left",
-    "enabled": false
+    "enabled": true
   },
   {
     "name": "cam2",

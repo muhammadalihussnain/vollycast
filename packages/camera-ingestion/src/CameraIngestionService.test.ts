@@ -51,6 +51,26 @@ describe('CameraIngestionService', () => {
     expect(cam1.id).not.toBe(cam2.id);
   });
 
+  it('reconnecting with the same name reuses existing ID and updates status to active', () => {
+    const cam1 = service.connect({ name: 'Cam 1', streamUrl: 'rtmp://localhost/live/cam1' });
+    service.disconnect(cam1.id);
+    expect(service.getCamera(cam1.id)?.status).toBe('disconnected');
+
+    const reconnected = service.connect({ name: 'Cam 1', streamUrl: 'rtmp://localhost/live/cam1-new' });
+    expect(reconnected.id).toBe(cam1.id);
+    expect(reconnected.status).toBe('active');
+    expect(reconnected.streamUrl).toBe('rtmp://localhost/live/cam1-new');
+    expect(service.getCameras()).toHaveLength(1);
+  });
+
+  it('unregister removes camera from registry and tracking', () => {
+    const cam = service.connect({ name: 'Cam 1', streamUrl: 'rtmp://localhost/live/cam1' });
+    service.unregister(cam.id);
+    expect(service.getCamera(cam.id)).toBeUndefined();
+    expect(service.getCameras()).toHaveLength(0);
+  });
+
+
   // ─── disconnect ───────────────────────────────────────────────────────────────
 
   it('disconnect updates status to disconnected', () => {

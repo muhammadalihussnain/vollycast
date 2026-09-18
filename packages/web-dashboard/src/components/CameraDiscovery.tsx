@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { enableCamera } from '../api/client.js';
 
 interface AgentStatus {
   laptopIp: string;
@@ -76,12 +77,8 @@ export function CameraDiscovery({ onConnect }: Props): React.JSX.Element {
         body: JSON.stringify({ name: camName, ip }),
       });
 
-      // 2. Register camera with API
-      await fetch('/cameras/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: camName, streamUrl: `rtmp://nginx-rtmp:1935/live/${camName}` }),
-      });
+      // 2. Enable camera with API (updates IP in cameraConfig, sets enabled=true, and registers camera)
+      await enableCamera(camName, ip);
 
       setConnected((prev) => [...prev, ip]);
       onConnect();

@@ -23,6 +23,7 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const hlsUrl = `/hls/${name}.m3u8`;
 
   /** Retry interval when stream is not yet available */
@@ -47,18 +48,30 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
         liveSyncDurationCount: 1,
         liveMaxLatencyDurationCount: 3,
         liveDurationInfinity: true,
-        manifestLoadingTimeOut: 2000,
-        manifestLoadingMaxRetry: 0,
+        manifestLoadingTimeOut: 3000,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetryTimeout: 15000,
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          xhr.setRequestHeader('Pragma', 'no-cache');
+        },
       });
       hlsRef.current = hls;
 
       // If manifest fails to load — stream not ready yet, retry
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
+          setIsPlaying(false);
           hls.destroy();
           hlsRef.current = null;
           // Retry after delay
-          retryTimerRef.current = setTimeout((): void => { startHls(); }, RETRY_INTERVAL_MS);
+          if (retryTimerRef.current === null) {
+            retryTimerRef.current = setTimeout((): void => {
+              retryTimerRef.current = null;
+              startHls();
+            }, RETRY_INTERVAL_MS);
+          }
         }
       });
 
@@ -66,15 +79,17 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
         void video.play().catch(() => undefined);
       });
 
-      hls.loadSource(hlsUrl);
+      // Append timestamp to bypass any cached 404
+      hls.loadSource(`${hlsUrl}?_t=${Date.now()}`);
       hls.attachMedia(video);
     } else if (video.canPlayType('application/vnd.apple.mpegurl') !== '') {
-      video.src = hlsUrl;
+      video.src = `${hlsUrl}?_t=${Date.now()}`;
       void video.play().catch(() => undefined);
     }
   }, [hlsUrl]);
 
   useEffect(() => {
+    setIsPlaying(false);
     startHls();
     return (): void => {
       if (retryTimerRef.current !== null) {
@@ -89,9 +104,23 @@ function CameraPreview({ name, active }: { name: string; active: boolean }): Rea
   return (
     <div className="relative w-full overflow-hidden rounded-lg bg-slate-900"
       style={{ aspectRatio: '16/9' }}>
-      <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+      <video
+        ref={videoRef}
+        className="h-full w-full object-cover"
+        autoPlay
+        muted
+        playsInline
+        onPlaying={() => { setIsPlaying(true); }}
+        onWaiting={() => { setIsPlaying(false); }}
+      />
+      {!isPlaying && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-accent border-t-transparent mb-1.5" />
+          <span className="text-xs text-slate-300 font-medium">Connecting stream...</span>
+        </div>
+      )}
       {active && (
-        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-red-600/90 px-1.5 py-0.5">
+        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded bg-red-600/90 px-1.5 py-0.5 z-10">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
           <span className="text-xs font-bold text-white">LIVE</span>
         </div>
@@ -132,7 +161,6 @@ function CameraSlot({
   const [loading, setLoading] = useState(false);
   const [editingIp, setEditingIp] = useState(false);
   const [ipInput, setIpInput] = useState(config.ip);
-  const [ffmpegCmd, setFfmpegCmd] = useState<string | null>(null);
 
   const isStreaming = camera !== undefined && (camera.status === 'active' || camera.status === 'error');
 
@@ -140,18 +168,26 @@ function CameraSlot({
     setLoading(true);
     try {
       if (config.enabled) {
+        // DISCONNECT: tell host-agent first, then API
+        await fetch('/agent/disconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: config.name }),
+        });
         await disableCamera(config.name);
-        setFfmpegCmd(null);
       } else {
         if (config.ip.length === 0) {
           setEditingIp(true);
           setLoading(false);
           return;
         }
-        const result = await enableCamera(config.name, config.ip) as { ffmpegCommand?: string };
-        if (result.ffmpegCommand !== undefined) {
-          setFfmpegCmd(result.ffmpegCommand);
-        }
+        // CONNECT: tell host-agent to start FFmpeg, then register with API
+        await fetch('/agent/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: config.name, ip: config.ip }),
+        });
+        await enableCamera(config.name, config.ip);
       }
       onConfigChange();
     } catch (err) {
@@ -166,6 +202,12 @@ function CameraSlot({
     setLoading(true);
     setEditingIp(false);
     try {
+      // Tell host-agent to start FFmpeg with the new IP
+      await fetch('/agent/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: config.name, ip: ipInput.trim() }),
+      });
       await enableCamera(config.name, ipInput.trim());
       onConfigChange();
     } catch (err) {
@@ -252,19 +294,7 @@ function CameraSlot({
         )}
       </div>
 
-      {/* FFmpeg command — shown after connecting */}
-      {ffmpegCmd !== null && !isStreaming && (
-        <div className="mt-2 rounded bg-slate-900 p-2">
-          <div className="text-xs text-yellow-400 mb-1">▶ Run this command on your laptop:</div>
-          <div className="font-mono text-xs text-slate-300 break-all select-all">{ffmpegCmd}</div>
-          <button
-            onClick={() => { void navigator.clipboard.writeText(ffmpegCmd); }}
-            className="mt-1 text-xs text-brand-accent hover:underline"
-          >
-            Copy command
-          </button>
-        </div>
-      )}
+      {/* FFmpeg is managed automatically by host-agent */}
     </div>
   );
 }
@@ -298,7 +328,9 @@ export function CameraGrid({ cameras, cameraConfig, scenes, currentSceneId, onSw
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {slots.map((config) => {
-        const camera = cameras.find((c) => c.name === config.name);
+        const camera = cameras
+          .filter((c) => c.name === config.name)
+          .sort((a, b) => (b.status === 'active' ? 1 : 0) - (a.status === 'active' ? 1 : 0))[0];
         const scene = scenes.find((s) => camera !== undefined && s.cameraId === camera.id);
         const isActive = scene !== undefined && scene.id === currentSceneId;
 

@@ -95,9 +95,26 @@ export class CameraIngestionService {
   /**
    * Connect a camera to the system.
    * Registers it in the registry and emits CAMERA_CONNECTED.
-   * @returns the new Camera object
+   * If a camera with the same name already exists, reuses it and updates status to active.
+   * @returns the active Camera object
    */
   public connect(options: ConnectCameraOptions): Camera {
+    const existing = this.registry.getAll().find((c) => c.name === options.name);
+    if (existing !== undefined) {
+      this.registry.update(existing.id, {
+        streamUrl: options.streamUrl,
+        status: 'active',
+      });
+      this.lastSeenAt.set(existing.id, Date.now());
+      const activeCamera = this.registry.get(existing.id) as Camera;
+
+      const payload: CameraEventPayload = { camera: activeCamera };
+      this.bus.emit(VOLLYCAST_EVENTS.CAMERA_CONNECTED, payload);
+
+      logger.info({ cameraId: existing.id, name: existing.name }, 'Camera reconnected');
+      return activeCamera;
+    }
+
     const camera: Camera = {
       id: randomUUID(),
       name: options.name,
@@ -138,6 +155,17 @@ export class CameraIngestionService {
     this.bus.emit(VOLLYCAST_EVENTS.CAMERA_DISCONNECTED, payload);
 
     logger.info({ cameraId: id }, 'Camera disconnected');
+  }
+
+  /**
+   * Unregister a camera completely from the registry.
+   */
+  public unregister(id: CameraId): void {
+    if (this.registry.has(id)) {
+      this.lastSeenAt.delete(id);
+      this.registry.unregister(id);
+      logger.info({ cameraId: id }, 'Camera unregistered');
+    }
   }
 
   /**

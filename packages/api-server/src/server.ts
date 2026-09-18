@@ -22,7 +22,7 @@
  */
 
 import { createServer as createHttpServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
@@ -151,6 +151,27 @@ apiApp.get('/cameras', (_req: Request, res: Response): void => {
 /** Blocklist of camera names manually disconnected — nginx on_publish will not re-register these */
 const disconnectedCameras = new Set<string>();
 
+/** Clean up any stale HLS playlist and segment files for a camera */
+function cleanupHlsFiles(camName: string): void {
+  const hlsDir = '/tmp/hls';
+  try {
+    if (!existsSync(hlsDir)) return;
+    const files = readdirSync(hlsDir);
+    for (const file of files) {
+      if (file.startsWith(`${camName}.m3u8`) || file.startsWith(`${camName}-`)) {
+        try {
+          unlinkSync(join(hlsDir, file));
+        } catch {
+          // ignore unlink error
+        }
+      }
+    }
+    logger.info({ camName }, 'Cleaned up stale HLS files');
+  } catch (err) {
+    logger.warn({ err, camName }, 'Could not clean up HLS files');
+  }
+}
+
 apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
   const body = req.body as Record<string, string>;
   const name = body['name'];
@@ -161,14 +182,15 @@ apiApp.post('/cameras/connect', (req: Request, res: Response): void => {
     return;
   }
 
-  // Remove existing camera with same name to prevent duplicates
-  const existing = cameraService.getCameras().find((c: { name: string }) => c.name === name);
-  if (existing !== undefined) {
-    try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
-  }
-
   // Clear from disconnect blocklist — user is explicitly re-adding this camera
   disconnectedCameras.delete(name);
+
+  // Update cameraConfig if present
+  const configCam = cameraConfig.find((c) => c.name === name);
+  if (configCam !== undefined) {
+    configCam.enabled = true;
+    saveCameraConfig(cameraConfig);
+  }
 
   try {
     const camera = cameraService.connect({ name, streamUrl });
@@ -191,7 +213,14 @@ apiApp.post('/cameras/disconnect', (req: Request, res: Response): void => {
     return;
   }
 
-  // Remove ALL cameras with this name
+  // Update cameraConfig
+  const configCam = cameraConfig.find((c) => c.name === name);
+  if (configCam !== undefined) {
+    configCam.enabled = false;
+    saveCameraConfig(cameraConfig);
+  }
+
+  // Disconnect ALL cameras with this name
   const allWithName = cameraService.getCameras().filter((c: { name: string }) => c.name === name);
 
   if (allWithName.length === 0) {
@@ -203,8 +232,11 @@ apiApp.post('/cameras/disconnect', (req: Request, res: Response): void => {
     try { cameraService.disconnect(camera.id); } catch { /* ignore */ }
   }
 
-  // Block this name from being re-registered by nginx
+  // Block this name from being re-registered by nginx until explicitly re-enabled
   disconnectedCameras.add(name);
+
+  // Clean up stale HLS files
+  cleanupHlsFiles(name);
 
   res.status(HTTP_STATUS.OK).json({ disconnected: name, count: allWithName.length });
 });
@@ -226,6 +258,12 @@ apiApp.post('/rtmp/on_publish', (req: Request, res: Response): void => {
     return;
   }
 
+  // Allow cameras that are enabled in config to clear disconnect blocklist
+  const configCam = cameraConfig.find((c) => c.name === streamKey);
+  if (configCam !== undefined && configCam.enabled) {
+    disconnectedCameras.delete(streamKey);
+  }
+
   // Do not re-register cameras that were manually disconnected
   if (disconnectedCameras.has(streamKey)) {
     logger.info({ streamKey }, 'Camera is in disconnect blocklist — skipping auto-register');
@@ -236,16 +274,10 @@ apiApp.post('/rtmp/on_publish', (req: Request, res: Response): void => {
   logger.info({ streamKey }, 'Phone started streaming');
 
   try {
-    // Allow cameras that are enabled in config
-    const configCam = cameraConfig.find((c) => c.name === streamKey);
-    if (configCam !== undefined && configCam.enabled) {
-      disconnectedCameras.delete(streamKey);
-    }
-
-    // If camera with this name already exists — skip, do not register again
+    // If camera with this name already exists and is active — skip duplicate
     const existing = cameraService.getCameras().find((c: { name: string }) => c.name === streamKey);
-    if (existing !== undefined) {
-      logger.info({ streamKey }, 'Camera already registered — skipping duplicate');
+    if (existing !== undefined && existing.status === 'active') {
+      logger.info({ streamKey }, 'Camera already active — skipping duplicate');
       res.status(HTTP_STATUS.OK).send('OK');
       return;
     }
@@ -272,6 +304,7 @@ apiApp.post('/rtmp/on_done', (req: Request, res: Response): void => {
       // already disconnected — ignore
     }
   }
+  cleanupHlsFiles(streamKey);
   res.status(HTTP_STATUS.OK).send('OK');
 });
 
@@ -475,9 +508,6 @@ apiApp.post('/cameras/:name/ip', (req: Request, res: Response): void => {
 /** Track FFmpeg processes per camera name */
 const cameraFfmpegProcesses = new Map<string, ChildProcess>();
 
-/** Port IP Webcam serves video on */
-const IP_WEBCAM_PORT_NUM = 8080;
-
 /**
  * Stop FFmpeg for a camera.
  */
@@ -520,20 +550,12 @@ apiApp.post('/cameras/:name/enable', (req: Request, res: Response): void => {
   // Remove blocklist entry so camera can be registered
   disconnectedCameras.delete(name);
 
-  // Remove existing to avoid duplicates
-  const existing = cameraService.getCameras().find((c: { name: string }) => c.name === name);
-  if (existing !== undefined) {
-    try { cameraService.disconnect(existing.id); } catch { /* ignore */ }
-  }
-
-  // NOTE: FFmpeg must run on the HOST machine (not inside Docker) because it needs
-  // to reach the phone IP on the local WiFi network.
-  // The dashboard shows the command to run.
-  const ffmpegCommand = `ffmpeg -i http://${cam.ip}:${String(IP_WEBCAM_PORT_NUM)}/video -vcodec libx264 -preset ultrafast -tune zerolatency -vf scale=640:480 -b:v 800k -f flv rtmp://localhost:1935/live/${name}`;
+  // Clean up any stale HLS files
+  cleanupHlsFiles(name);
 
   const streamUrl = `rtmp://nginx-rtmp:1935/live/${name}`;
   const camera = cameraService.connect({ name, streamUrl });
-  res.json({ enabled: true, camera, ip: cam.ip, ffmpegCommand });
+  res.json({ enabled: true, camera, ip: cam.ip });
 });
 
 /**
@@ -555,7 +577,7 @@ apiApp.post('/cameras/:name/disable', (req: Request, res: Response): void => {
   // Add to blocklist
   disconnectedCameras.add(name);
 
-  // Stop FFmpeg for this camera
+  // Stop FFmpeg for this camera (if managed locally)
   stopCameraFfmpeg(name);
 
   // Disconnect all cameras with this name
@@ -563,6 +585,9 @@ apiApp.post('/cameras/:name/disable', (req: Request, res: Response): void => {
   for (const camera of allWithName) {
     try { cameraService.disconnect(camera.id); } catch { /* ignore */ }
   }
+
+  // Clean up stale HLS files
+  cleanupHlsFiles(name);
 
   res.json({ disabled: true, name });
 });
@@ -664,6 +689,15 @@ async function start(): Promise<void> {
   cameraService.start();
   streamEngine.start();
   recordingManager.start();
+
+  // Heartbeat loop — keep active streams alive in cameraService so they don't timeout
+  const HEARTBEAT_INTERVAL_MS = 3000;
+  setInterval(() => {
+    const activeCams = cameraService.getCameras().filter((c) => c.status === 'active');
+    for (const cam of activeCams) {
+      cameraService.heartbeat(cam.id);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 
   // Auto-register enabled cameras from cameras.json
   // Only registers in-memory — actual streaming requires FFmpeg running on the host
